@@ -1,0 +1,7 @@
+~*
+*~
+*.swp
+EP*/
+.vs/
+PCB/REV*-Gerbers/
+*.user
