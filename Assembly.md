@@ -114,7 +114,7 @@ R in the thermostat to connect to which R in the furnace, you need to know a lit
 furnace is wired. The PCB also
 has a jumper position to tie Rx to Rz.
 
-<p align='center'><img src='jumpers.png' alt='jumpers.png'/></p>
+<p align='center'><img src='Jumpers.png' alt='Jumpers.png'/></p>
 
 Firmware and initial test
 <ol>
