@@ -729,29 +729,11 @@ namespace Furnace {
         Serial.print(F("UpdateOutputs: 0x")); 
         Serial.println(mask, HEX);
 #endif
-#if 1
         SPI.beginTransaction(SPISettings(3000000, MSBFIRST, SPI_MODE0));
         digitalWrite(OUTREG_SPI_CS_PIN, LOW);
         SPI.transfer(mask);
         digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
         SPI.endTransaction();
-#else
-        // SPI was a bit of a crank to make work...
-        digitalWrite(SCK, HIGH);
-        pinMode(MOSI, OUTPUT);
-        pinMode(SCK, OUTPUT);
-        for (int i = 0; i < 8; i++)
-        {
-            digitalWrite(MOSI, 0 == (mask & 0x80) ? LOW : HIGH);
-            digitalWrite(SCK, LOW);
-            digitalWrite(SCK, HIGH);
-            mask <<= 1;
-        }
-        digitalWrite(OUTREG_SPI_CS_PIN, LOW);
-        digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
-        pinMode(MOSI, INPUT);
-        pinMode(SCK, INPUT);
-#endif
 #endif
     }
 
@@ -827,13 +809,11 @@ void setup()
     displayLcdFarenheit = EEPROM.read(static_cast<int>(EepromAddresses::DISPLAY_UNITS_ADDRESS)) != 0;
 
     Wire.begin();
-
-    // magic SPI begin..must set SS output and HIGH, else library misbehaves
-    digitalWrite(SS, HIGH);
-    pinMode(SS, OUTPUT);
+    SPI.begin();
+    Furnace::UpdateOutputs(0);
 
 #if USE_SERIAL > 0
-#if 0	
+#if SERIAL_DEBUG > 0
     for (uint8_t i = 0; i < 1500; i++)
         if (Serial.read() >= 0)
             break;
@@ -912,7 +892,6 @@ void setup()
     pinMode(PCB_INPUT_Z2_PIN, INPUT_PULLUP);
     pinMode(PCB_INPUT_R_ACTIVE_PIN, INPUT_PULLUP);
 
-    Furnace::UpdateOutputs(0);
     ThermostatCommon::setup();
 }
 

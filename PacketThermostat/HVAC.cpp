@@ -599,7 +599,7 @@ protected:
 
     int16_t ActivateTemperatureFromTarget(int16_t target) override { return target + 6; } // .6 degree C
 
-    static const int DEHUMIDIFY_HYSTERESIS = 10;
+    static const int DEHUMIDIFY_HYSTERESIS = 10; // Turn ON at set point + 1% and turn off at set point - 1%
 
     uint8_t OnReceivedHumidityInput(int16_t rhX10, int16_t degCx10, uint8_t mask) override
     {
@@ -608,7 +608,7 @@ protected:
         bool needDehumd = 
             dehumidifyState == DEHUMDIFY_OFF 
             ?    rhX10 > settingsFromEeprom.HumiditySettingX10 + DEHUMIDIFY_HYSTERESIS  
-            :   rhX10 > settingsFromEeprom.HumiditySettingX10 - DEHUMIDIFY_HYSTERESIS;
+            :   rhX10 <= settingsFromEeprom.HumiditySettingX10 - DEHUMIDIFY_HYSTERESIS;
         static const int HALF_DEGREE_C = 5;
         if (needDehumd)
         {

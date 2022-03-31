@@ -238,17 +238,17 @@ namespace {
     {
         std::ostringstream heatSettings;
         heatSettings << "HVAC_SETTINGS 1 0"; // temperatures are 0.1C off, 0.0C on
-
         heatSettings << " " << std::hex << sensorMask;  // thermometer mask
         heatSettings << " " << std::hex << (int)(MASK_G); // fan mask
-        heatSettings << " 0"; // always on (is nothing)
-        heatSettings << " " << std::hex << (int)(MASK_Y|MASK_G); // heat stage 1
-        heatSettings << " " << std::hex << (int)(MASK_Y|MASK_G); // heat state 2 (same as stage 1)
-        heatSettings << " " << std::hex << (int)(MASK_W); // heat stage 3 (switch to furnace only
-        heatSettings << " " << std::dec << 10; // second stage matches 1, so short timeout
+        heatSettings << " " << std::hex << (int)MASK_DH; // always on (dehumidify--reverse logic)
+        heatSettings << " " << std::hex << (int)(MASK_Y|MASK_G | MASK_DH); // heat stage 1
+        heatSettings << " " << std::hex << (int)(MASK_Y|MASK_Y2|MASK_G | MASK_DH); // heat state 2 
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
 
-        int secondsToStage3Heat = 60 * 15; // 15 minutes of stage 1 by default
+        int secondsToStage2Heat = 60 * 15; // 15 minutes of stage 1 by default
+        heatSettings << " " << std::dec << secondsToStage2Heat; // 
 
+        int secondsToStage3Heat = 60 * 5;
         for (int i = 0; i < argc; i++)
         {
             if (strcmp(argv[i], "-ss3") == 0)
@@ -259,7 +259,7 @@ namespace {
             }
         }
 
-        heatSettings << " " << std::dec << secondsToStage3Heat; /// seconds to stage 3
+        heatSettings << " " << std::dec << secondsToStage2Heat + secondsToStage3Heat; /// seconds to stage 3
 
         DoCommandAndWait(heatSettings.str(), sp);
     }
@@ -272,15 +272,14 @@ namespace {
     {
         std::ostringstream heatSettings;
         heatSettings << "HVAC_SETTINGS 1 0"; // temperatures are 0.1C off, 0.0C on
-
         heatSettings << " " << std::hex << sensorMask;  // thermometer mask
         heatSettings << " " << std::hex << (int)(MASK_G); // fan mask
-        heatSettings << " 0"; // always on (is nothing)
-        heatSettings << " " << std::hex << (int)(MASK_W); // heat stage 1
-        heatSettings << " " << std::hex << (int)(MASK_W); // heat state 2 (same as stage 1)
-        heatSettings << " " << std::hex << (int)(MASK_W); // heat stage 3 (switch to furnace only
+        heatSettings << " " << std::hex << (int)MASK_DH; // always on (dehumidify--reverse logic)
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 1
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat state 2 (same as stage 1)
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
         heatSettings << " " << std::dec << 10; // second stage matches 1, so short timeout
-        heatSettings << " " << std::dec << 10; // 3 stage matches 2, so short timeout
+        heatSettings << " " << std::dec << 20; // 3 stage matches 2, so short timeout
         DoCommandAndWait(heatSettings.str(), sp);
     }
 
@@ -294,7 +293,6 @@ namespace {
     {
         std::ostringstream coolSettings;
         coolSettings << "HVAC_SETTINGS 400 410"; // temperatures are 40C off, 41C on
-
         coolSettings << " " << std::hex << sensorMask;  // thermometer mask
         coolSettings << " " << std::hex << (int)(MASK_G); // fan mask
         coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH); // always ON
