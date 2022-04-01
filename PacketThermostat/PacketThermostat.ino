@@ -86,11 +86,6 @@ THE SOFTWARE. */
 
 #define USE_SERIAL 1        // for testing, all access to Serial can be removed
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
-
-#if !defined(__AVR_ATmega32U4__)
-#error "This sketch only works on Pro Micro with 32U4 processor"
-#endif
-
 #define SERIAL_DEBUG 0 // extra output
 
 namespace LCD {
@@ -215,7 +210,6 @@ namespace
     const int RFM69_SPI_CS_PIN = 10; // pin number
     const int RMF69_INT_PIN = 7; // 32U4 has hardware interrupt on this pin
     const int OUTREG_SPI_CS_PIN = 9;
-    const int HEARTBEAT_LED_PIN = 30;
 
     const int S1_7089U_OUTSIDE_PIN = A1;
     const int T_LM235_INLET_PIN = A2;
@@ -799,9 +793,6 @@ void setup()
 {
 #if USE_SERIAL > 0
     Serial.begin(9600);
-#else
-    digitalWrite(HEARTBEAT_LED_PIN, LOW);
-    pinMode(HEARTBEAT_LED_PIN, OUTPUT);
 #endif
 
     digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
