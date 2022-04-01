@@ -303,8 +303,14 @@ namespace {
         coolSettings << " " << std::dec << 9999; // 3 stage matches 2
         DoCommandAndWait(coolSettings.str(), sp);
     }
-
-    DoCommandAndWait("HUM_SETTINGS", sp); // no demudify function.
+    {
+        std::ostringstream dehumidify;
+        dehumidify << "HUM_SETTINGS";
+        dehumidify << " " << std::dec << 600; // 60% humidity target
+        dehumidify << " " << std::hex << (int)0; // turn ON no bits
+        dehumidify << " " << std::hex << (int)(MASK_DH); // turn OFF the DH wire.
+        DoCommandAndWait(dehumidify.str(), sp); // no demudify function.
+    }
 
     DoCommandAndWait("HVAC COMMIT", sp);
 
