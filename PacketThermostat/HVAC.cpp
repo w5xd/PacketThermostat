@@ -608,7 +608,7 @@ protected:
         bool needDehumd = 
             dehumidifyState == DEHUMDIFY_OFF 
             ?    rhX10 > settingsFromEeprom.HumiditySettingX10 + DEHUMIDIFY_HYSTERESIS  
-            :   rhX10 <= settingsFromEeprom.HumiditySettingX10 - DEHUMIDIFY_HYSTERESIS;
+            :   rhX10 > settingsFromEeprom.HumiditySettingX10 - DEHUMIDIFY_HYSTERESIS;
         static const int HALF_DEGREE_C = 5;
         if (needDehumd)
         {
