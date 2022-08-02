@@ -462,10 +462,10 @@ namespace
         // binary search
         for (;;)
         {
-            int16_t diff = ADCx64 - static_cast<uint16_t>(pgm_read_word_near(&C7089UCoefficients[idx].ADCx64));
-            if (diff == 0)
+            auto tbl = static_cast<uint16_t>(pgm_read_word_near(&C7089UCoefficients[idx].ADCx64));
+            if (ADCx64 == tbl)
                 return pgm_read_word_near(&C7089UCoefficients[idx].TCelsiusX10);
-            else if (diff > 0)
+            else if (ADCx64 > tbl)
                 maxIdx = idx;
             else
                 minIdx = idx;
