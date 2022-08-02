@@ -599,11 +599,11 @@ protected:
 
     int16_t ActivateTemperatureFromTarget(int16_t target) override { return target + 6; } // .6 degree C
 
-    static const int DEHUMIDIFY_HYSTERESIS = 10;
+    static const int DEHUMIDIFY_HYSTERESIS = 15; // Turn ON at set point + 1.5% and turn off at set point - 1.5%
 
     uint8_t OnReceivedHumidityInput(int16_t rhX10, int16_t degCx10, uint8_t mask) override
     {
-        if (settingsFromEeprom.HumiditySettingX10 == 0xffu)
+        if (settingsFromEeprom.HumiditySettingX10 == 0xffffu)
             return mask;
         bool needDehumd = 
             dehumidifyState == DEHUMDIFY_OFF 
@@ -637,14 +637,14 @@ protected:
             const char *q = strstr(cmd, HUMIDIFY_SETTINGS);
             if (q)
             {
-                settingsFromEeprom.HumiditySettingX10 = 0xffu; // turn it off
+                settingsFromEeprom.HumiditySettingX10 = 0xffffu; // turn it off
                 q += sizeof(HUMIDIFY_SETTINGS) - 1;
                 if (!*(q++)) return true;
+                settingsFromEeprom.HumiditySettingX10 = aDecimalToInt(q); 
+                if (!*q) return true;
                 settingsFromEeprom.MaskDehumidifyBitsOn = aHexToInt(q);
                 if (!*q) return true;
                 settingsFromEeprom.MaskDehumidifyBitsOff = aHexToInt(q);
-                if (!*q) return true;
-                settingsFromEeprom.HumiditySettingX10 = aDecimalToInt(q); 
                 return true;
             }
         }
