@@ -29,12 +29,11 @@ THE SOFTWARE. */
 ** through to the furnace.
 **
 ** It accepts commands over its RFM69 packet radio that it uses to set into modes
-** that modify the 24VAC commands to the furnace.
+** that modify the 24VAC commands to the furnace. And it sends reports over the RFM69.
 **
 ** The PCB and sketch designs handle up to 6 wires of 24VAC controls. 
 ** These 6 wires, for example, usually include W for heat, G for fan, Y for a compressor (either AC or heat pump)
-** O or B for heat pump. Multi-stage furnace, heat pump, and air conditioners each might add another wire.
-** The PCB (and this sketch) support up to 6 signals.
+** O or B for a reversing valve. A multi-stage furnace, heat pump, and/or air conditioners each might add another wire.
 **
 ** "Communicating" thermostats are not supported.
 **
@@ -45,7 +44,7 @@ THE SOFTWARE. */
 ** affects only the necessary wiring of the PCB connectors and jumpers. This sketch is not affected by the
 ** R wire 24VAC supply wiring.
 **
-** This PCB design requires a dedicated 5VDC barrel connector power supply.
+** This PCB design requires a dedicated 5VDC power supply through its barrel connector.
 **
 ** A Serial LCD display is supported via a qwiic connector. A calendar/clock (RTC) is also supported
 ** on qwiic. This board does not support any user input except via the packet radio.
