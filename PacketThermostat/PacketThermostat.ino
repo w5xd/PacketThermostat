@@ -807,33 +807,6 @@ namespace Furnace {
         mask &= OUTPUT_SIGNAL_MASK;
         LastOutputWrite = mask;
 
-        // check inlet temperature in heat modes and shut down if EEPROM settings say so
-        if (!HeatSafetyOffTimeActive)
-        {
-            auto heatSafetySeconds = getHeatSafetyHoldSeconds();
-            if (heatSafetySeconds > 0 && heatSafetySeconds != static_cast<uint16_t>(0xffff))
-            {
-                auto heatSafetyTempCx10 = getHeatSafetyTemperatureCx10();
-                if (heatSafetyTempCx10 > 0)
-                {
-                    if (heatSafetyTempCx10 <= TinletTemperatureCx10)
-                    {   // safety triggerred
-                        for (uint8_t i = 0; i < NUM_HEAT_SAFETY_ENTRIES; i++)
-                        {
-                            HeatSafetyMask_t m = getHeatSafetyMask(i);
-                            uint8_t bits = ~m.dontCareMask & mask;
-                            if (bits == m.mustMatchMask && m.toClear != 0)
-                            { // table indicates this IS a heat mode, so shut down heat
-                                HeatSafetyOffStartTime = millis();
-                                HeatSafetyOffTimeActive = true;
-                                HeatSafetyShutoffMask = ~m.toClear;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
         if (HeatSafetyOffTimeActive)
             mask &= HeatSafetyShutoffMask;
 
@@ -1081,10 +1054,40 @@ void loop()
         Furnace::SetOutputBits();
     }
 
-    if (HeatSafetyOffTimeActive && (now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
+    if (HeatSafetyOffTimeActive)
     {
-        HeatSafetyOffTimeActive = false;
-        Furnace::SetOutputBits();
+        if ((now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
+        {
+            HeatSafetyOffTimeActive = false;
+            Furnace::SetOutputBits();
+        }
+    }
+    if (!HeatSafetyOffTimeActive)
+    {   // check inlet temperature in heat modes and shut down if EEPROM settings say so
+        auto heatSafetySeconds = getHeatSafetyHoldSeconds();
+        if (heatSafetySeconds > 0 && heatSafetySeconds != static_cast<uint16_t>(0xffff))
+        {
+            auto heatSafetyTempCx10 = getHeatSafetyTemperatureCx10();
+            if (heatSafetyTempCx10 > 0)
+            {
+                if (heatSafetyTempCx10 <= TinletTemperatureCx10)
+                {   // safety triggerred
+                    for (uint8_t i = 0; i < NUM_HEAT_SAFETY_ENTRIES; i++)
+                    {
+                        HeatSafetyMask_t m = getHeatSafetyMask(i);
+                        uint8_t bits = ~m.dontCareMask & mask;
+                        if (bits == m.mustMatchMask && m.toClear != 0)
+                        { // table indicates this IS a heat mode, so shut down heat
+                            HeatSafetyOffStartTime = millis();
+                            HeatSafetyOffTimeActive = true;
+                            HeatSafetyShutoffMask = ~m.toClear;
+                            Furnace::SetOutputBits();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     uint8_t inputsAsRead = 0;
