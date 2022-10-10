@@ -143,3 +143,10 @@ All the above settings are settable by radio packets or by a wired serial port, 
 be stored in the Arduino's EEPROM. Each mode also has a five character name, which it will display on the LCD when
 commanded into that mode.
 
+The sketch supports a safety shutdown feature that can be configured via its radio or serial port. It is independent of the mode settings listed above.
+The feature has a command to set
+a trigger temperature for the HVAC input temperature sensor. 
+<i>When this trigger temperature is exceeded while the thermostat is in a heating mode, the furnace is shut down for a timed interval.</i>
+The PacketThermostatSettings application is an easy way to set up
+this feature. It sets the required parameters that configure this feature: the trigger temperature, the shutdown time,
+the thermostat signal combinations that indicate a heat mode, and the thermostat signals to turn off to shut down the furnace.
