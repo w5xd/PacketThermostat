@@ -1,5 +1,6 @@
 #pragma once
 #include "PcbSignalDefinitions.h"
+#define USE_SERIAL 1        // for testing, all access to Serial can be removed
 
 namespace Furnace {
     void UpdateOutputs(uint8_t mask);

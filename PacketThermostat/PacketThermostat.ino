@@ -83,7 +83,6 @@ THE SOFTWARE. */
 //#undef F
 //#define F(x) x
 
-#define USE_SERIAL 1        // for testing, all access to Serial can be removed
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
 #define SERIAL_DEBUG 0 // extra output
 
@@ -197,12 +196,24 @@ namespace LCD {
 namespace
 {
     const int MAX_WIRE_NAME_LEN = 2;
+    struct HeatSafetyMask_t {
+        uint8_t dontCareMask;
+        uint8_t mustMatchMask;
+        uint8_t toClear;
+        HeatSafetyMask_t() : dontCareMask(0), mustMatchMask(0), toClear(0) {}
+    };
+    static_assert(sizeof(HeatSafetyMask_t) == 3, "no padding");
+    const int NUM_HEAT_SAFETY_ENTRIES = 3;
     enum class EepromAddresses {PACKET_THERMOSTAT_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
                 SIGNAL_LABEL_ASSIGNMENT = PACKET_THERMOSTAT_START,
                 DISPLAY_UNITS_ADDRESS = SIGNAL_LABEL_ASSIGNMENT + (OutregBits::NUMBER_OF_SIGNALS * MAX_WIRE_NAME_LEN),
                 COMPRESSOR_MASK,
                 COMPRESSOR_HOLD_SECONDS,
-                TOTAL_EEPROM_USED = COMPRESSOR_HOLD_SECONDS + 2};
+                HEATSAFETY_HOLD_SECONDS =  COMPRESSOR_HOLD_SECONDS + 2,
+                HEATSAFETY_TRIGGER_TEMPERATURECx10 = HEATSAFETY_HOLD_SECONDS + 2,
+                HEATSAFETY_MAP = HEATSAFETY_TRIGGER_TEMPERATURECx10 + 2,
+                TOTAL_EEPROM_USED = HEATSAFETY_MAP + NUM_HEAT_SAFETY_ENTRIES * sizeof(HeatSafetyMask_t)
+    };
 
     // Arduino pin assignments **********************************************************
     // These correspond with the PCB layout**********************************************
@@ -248,13 +259,18 @@ namespace
 
     const int CMD_BUFLEN = 80;
 
+    const int INPUT_AC_ACTIVE_MIN_MSEC = 100; // this long seen nothing on input, declare it OFF
+
     // enum OutregBits applies to both the input and output registers
     uint8_t OutputRegister = 0;
     uint8_t InputRegister = 0;
     bool InputsToHvacFlag;
     msec_time_stamp_t CompressorOffStartTime;
     bool CompressorOffTimeActive;
-    const int INPUT_AC_ACTIVE_MIN_MSEC = 100; // this long seen nothing on input, call it OFF
+    msec_time_stamp_t HeatSafetyOffStartTime;
+    uint8_t HeatSafetyShutoffMask;
+    bool HeatSafetyOffTimeActive;
+    int16_t TinletTemperatureCx10; // last calculated copy of TinleADCsum
 
     char cmdbuf[CMD_BUFLEN];
     unsigned char charsInBuf;
@@ -327,7 +343,7 @@ namespace
         wireName[0] = 0;
         if (i < OutregBits::NUMBER_OF_SIGNALS)
         {
-            int addr = static_cast<uint8_t>(EepromAddresses::SIGNAL_LABEL_ASSIGNMENT) + (i * MAX_WIRE_NAME_LEN);
+            int addr = static_cast<uint16_t>(EepromAddresses::SIGNAL_LABEL_ASSIGNMENT) + (i * MAX_WIRE_NAME_LEN);
             wireName[0] = EEPROM.read(addr++);
             wireName[1] = EEPROM.read(addr++);
             wireName[2] = 0;
@@ -342,7 +358,7 @@ namespace
 
     uint8_t getCompressorMask()
     {
-            int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_MASK);
+            int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_MASK);
             uint8_t ret = EEPROM.read(addr);
             if (ret == static_cast<uint8_t>(0xff))
                 return 0;
@@ -351,22 +367,71 @@ namespace
 
     uint16_t getCompressorHoldSeconds()
     {
-            int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
+            int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
             uint16_t ret;
             EEPROM.get(addr, ret);
             return ret;
     }
 
+    uint16_t getHeatSafetyHoldSeconds()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_HOLD_SECONDS);
+        uint16_t ret;
+        EEPROM.get(addr, ret);
+        return ret;
+    }
+
+    int16_t getHeatSafetyTemperatureCx10()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_TRIGGER_TEMPERATURECx10);
+        int16_t ret;
+        EEPROM.get(addr, ret);
+        return ret;
+    }
+
+    HeatSafetyMask_t getHeatSafetyMask(uint8_t which)
+    {
+        HeatSafetyMask_t ret;
+        if (which < NUM_HEAT_SAFETY_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_MAP);
+            addr += which * sizeof(ret);
+            EEPROM.get(addr, ret);
+        }
+        return ret;
+    }
+
     void setCompressorMask(uint8_t mask)
     {
-            int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_MASK);
+            int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_MASK);
             EEPROM.write(addr, mask);
     }
 
     void setCompressorHoldSeconds(uint16_t s)
     {
-        int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
+        int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
         EEPROM.put(addr, s);
+    }
+
+    void setHeatSafetyHoldSeconds(uint16_t s)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_HOLD_SECONDS);
+        EEPROM.put(addr, s);
+    }
+
+    void setHeatSafetyTemperatureX10(int16_t s)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_TRIGGER_TEMPERATURECx10);
+        EEPROM.put(addr, s);
+    }
+
+    void setHeatSafetyMask(uint8_t which, const HeatSafetyMask_t &m)
+    {
+        if (which < NUM_HEAT_SAFETY_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_MAP)  + which * sizeof(m);
+            EEPROM.put(addr, m);
+        }
     }
 
     char *reportHvac(char *p, uint8_t mask, char t)
@@ -560,7 +625,8 @@ namespace
             Serial.println(day);
 #endif
             return true;
-        } else if (toupper(cmd[0]) == 'I')
+        } 
+        else if (toupper(cmd[0]) == 'I')
         {
             radioPrintInfo();
 #if USE_SERIAL > 0
@@ -568,7 +634,8 @@ namespace
             Serial.println(CompressorOffTimeActive ? "active" : "off");
 #endif
             return true;
-        } else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'V' && isspace(cmd[2]))
+        } 
+        else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'V' && isspace(cmd[2]))
         {   // set wire names in EEPROM
             // HV <R> <Z2> <Z1> <W> <ZX> <X2> <X1>
             const char *p = cmd + 2;
@@ -605,12 +672,14 @@ namespace
                     setHvacWireName(i, nameBuf);
             }            
             return true;
-        } else if (toupper(cmd[0]) == 'D' && toupper(cmd[1]) == 'U' && cmd[2] == '=')
+        } 
+        else if (toupper(cmd[0]) == 'D' && toupper(cmd[1]) == 'U' && cmd[2] == '=')
         {   // DU=F and DU=C  for farenheit and celsius. Only affects LCD
             displayLcdFarenheit = cmd[3] == 'F';
             EEPROM.write(static_cast<int>(EepromAddresses::DISPLAY_UNITS_ADDRESS), displayLcdFarenheit ? 1 : 0);
             return true;
-        } else if (0 != (q = strstr(cmd, COMPRESSOR)))
+        } 
+        else if (0 != (q = strstr(cmd, COMPRESSOR)))
         {
             q += sizeof(COMPRESSOR) - 1;
             uint8_t mask = aHexToInt(q);
@@ -619,9 +688,51 @@ namespace
             uint16_t seconds = aDecimalToInt(q);
             setCompressorMask(mask);
             setCompressorHoldSeconds(seconds);
-        } else if (0 == strcmp(cmd, "RH"))
+            return true;
+        } 
+        else if (0 == strcmp(cmd, "RH"))
         {
             radioHvacReport(InputRegister, OutputRegister);
+            return true;
+        }
+        else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'S')
+        {
+            q = cmd+2;
+            while (isspace(*q)) q += 1;
+            auto c = *q++;
+            while (isspace(*q)) q += 1;
+            switch (c)
+            {
+            case 'C': // set temperature in Celsius
+                setHeatSafetyTemperatureX10(aDecimalToInt(q));
+                return true;
+
+            case 'T': // set timer in  seconds
+                setHeatSafetyHoldSeconds(aDecimalToInt(q));
+                return true;
+
+            case '1':
+            case '2':
+            case '3':
+                {
+                    int which = c - '1';
+                    HeatSafetyMask_t m;
+                    m.dontCareMask = aHexToInt(q);
+                    if (*q)
+                        m.mustMatchMask = aHexToInt(q);
+                    if (*q)
+                        m.toClear = aHexToInt(q);
+                    setHeatSafetyMask(which, m);
+#if SERIAL_DEBUG > 0
+                    Serial.print("Set Safety mask i=");
+                    Serial.print(which);
+                    Serial.print(" dc=0x"); Serial.print(m.dontCareMask, HEX);
+                    Serial.print(" mm=0x"); Serial.print(m.mustMatchMask, HEX);
+                    Serial.print(" tc=0x"); Serial.println(m.toClear, HEX);
+#endif
+                }
+                return true;
+            }
         }
 #if SERIAL_DEBUG > 0
         else if (toupper(cmd[0]) == 'U' && toupper(cmd[1]) == 'O' && cmd[2] == '=' && cmd[3] == '0' && cmd[4]=='x')
@@ -695,6 +806,38 @@ namespace Furnace {
     {
         mask &= OUTPUT_SIGNAL_MASK;
         LastOutputWrite = mask;
+
+        // check inlet temperature in heat modes and shut down if EEPROM settings say so
+        if (!HeatSafetyOffTimeActive)
+        {
+            auto heatSafetySeconds = getHeatSafetyHoldSeconds();
+            if (heatSafetySeconds > 0 && heatSafetySeconds != static_cast<uint16_t>(0xffff))
+            {
+                auto heatSafetyTempCx10 = getHeatSafetyTemperatureCx10();
+                if (heatSafetyTempCx10 > 0)
+                {
+                    if (heatSafetyTempCx10 <= TinletTemperatureCx10)
+                    {   // safety triggerred
+                        for (uint8_t i = 0; i < NUM_HEAT_SAFETY_ENTRIES; i++)
+                        {
+                            HeatSafetyMask_t m = getHeatSafetyMask(i);
+                            uint8_t bits = ~m.dontCareMask & mask;
+                            if (bits == m.mustMatchMask && m.toClear != 0)
+                            { // table indicates this IS a heat mode, so shut down heat
+                                HeatSafetyOffStartTime = millis();
+                                HeatSafetyOffTimeActive = true;
+                                HeatSafetyShutoffMask = ~m.toClear;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (HeatSafetyOffTimeActive)
+            mask &= HeatSafetyShutoffMask;
+
+        // check compressor short cycling logic
         uint8_t compressorMask = getCompressorMask();
         if (!CompressorOffTimeActive && compressorMask != 0xff)
         {
@@ -718,7 +861,7 @@ namespace Furnace {
 
         OutputRegister = mask;
 #if ENABLE_OUTPUT_RELAYS > 0
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
         Serial.print(F("UpdateOutputs: 0x")); 
         Serial.println(mask, HEX);
 #endif
@@ -811,19 +954,19 @@ void setup()
             delay(10);
     Serial.println(F("PacketThermostat DEBUG"));
 #else
-    Serial.println(F("PacketThermostat Rev02"));
+    Serial.println(F("PacketThermostat Rev03"));
 #endif
 #endif
     // setup radio
     // setup RTC
     if (rtc.begin() == false)
     {
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
         Serial.println(F("rtc begin FAILED"));
 #endif
     } else {
         rtc.set24Hour();
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
         Serial.println(F("rtc begin OK!"));
         rtc.setToCompilerTime();
         String ct = rtc.stringTime();
@@ -848,14 +991,14 @@ void setup()
             radio.spyMode(true);
             radioSetupOK = radio.getFrequency() != 0;
         }
-    #if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+    #if SERIAL_DEBUG > 1 && USE_SERIAL > 0
         Serial.println(ok ? "Radio init OK!" : "Radio init FAILED");
         radioPrintInfo();
     #endif   
     }
     else
     {
-    #if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+    #if SERIAL_DEBUG > 1 && USE_SERIAL > 0
         Serial.println("Radio EEPROM not setup");
         radioPrintInfo();
     #endif   
@@ -935,6 +1078,12 @@ void loop()
     if (CompressorOffTimeActive && (now - CompressorOffStartTime) > 1000L * getCompressorHoldSeconds())
     {   // deal with possible expiration of the compressor short cycle prevention timer
         CompressorOffTimeActive = false;
+        Furnace::SetOutputBits();
+    }
+
+    if (HeatSafetyOffTimeActive && (now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
+    {
+        HeatSafetyOffTimeActive = false;
         Furnace::SetOutputBits();
     }
 
@@ -1028,6 +1177,7 @@ void loop()
             case DO_REPORT:
                 {
                     radioTemperatureReport(TinletADCsum, ToutletADCsum, TexternalADCsum);
+                    TinletTemperatureCx10 = degreesCx10fromLM235ADCx64(TinletADCsum);
                     lastTemperatureAcquireMsec = now;
                     temperatureAcquireState  = WAIT_REPORT_INTERVAL;
                 }
@@ -1076,7 +1226,7 @@ void loop()
         routeCommand(reportbuf, sizeof(radio.DATA), static_cast<uint8_t>(radio.SENDERID), toMe);
         if (toMe && radio.ACKRequested())
             radio.sendACK();
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
         Serial.print(F("FromRadio: \""));
         Serial.print(reportbuf);
         Serial.print(F("\" sender:"));

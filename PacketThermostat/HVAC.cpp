@@ -141,7 +141,19 @@ protected:
         Serial.println(addr, HEX);
 #endif
         EEPROM.put(addr, settingsFromEeprom);
-        return addr + sizeof(settingsFromEeprom);
+        auto ret = addr + sizeof(settingsFromEeprom);
+#if USE_SERIAL > 0
+        int remaining = EEPROM.length();
+        remaining -= ret;
+        if (remaining < 0)
+            Serial.println(F("ERROR: WriteEprom beyond capacity"));
+        else
+        {
+            Serial.print(F("EEPROM remaining: 0x"));
+            Serial.println(remaining, HEX);
+        }
+#endif
+        return ret;
     }
     uint16_t ReadEprom(uint16_t addr)
     {

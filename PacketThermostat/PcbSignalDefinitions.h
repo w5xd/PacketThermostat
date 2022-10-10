@@ -1,6 +1,7 @@
 #pragma once
 // bit numbers in the output shift register on the PCB****AND in the input status*********************
-enum OutregBits { BN_W_FAILSAFE, BN_Z2, BN_FIRST_SIGNAL=BN_Z2, BN_Z1, BN_W, BN_ZX, BN_X2, BN_X1, BN_LAST_SIGNAL=BN_X1,  BN_R, BN_X3=BN_R, NUMBER_OF_SIGNALS };
+enum OutregBits { BN_W_FAILSAFE, BN_Z2, BN_FIRST_SIGNAL=BN_Z2, BN_Z1, BN_W, BN_ZX, BN_X2, BN_X1, 
+    BN_LAST_SIGNAL=BN_X1,  BN_R, BN_X3=BN_R, NUMBER_OF_SIGNALS };
 
 // On the PCB, 
 //             Six signals appear at both input and output: BN_X1, BN_X2, BN_Z1, BN_Z2, BN_ZX, BN_W
