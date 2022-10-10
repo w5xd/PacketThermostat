@@ -1075,7 +1075,7 @@ void loop()
                     for (uint8_t i = 0; i < NUM_HEAT_SAFETY_ENTRIES; i++)
                     {
                         HeatSafetyMask_t m = getHeatSafetyMask(i);
-                        uint8_t bits = ~m.dontCareMask & mask;
+                        uint8_t bits = ~m.dontCareMask & Furnace::LastOutputWrite;
                         if (bits == m.mustMatchMask && m.toClear != 0)
                         { // table indicates this IS a heat mode, so shut down heat
                             HeatSafetyOffStartTime = millis();
