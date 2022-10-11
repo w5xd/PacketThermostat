@@ -75,6 +75,7 @@ THE SOFTWARE. */
 #include <EEPROM.h>
 #include <SerLCD.h>
 #include <SparkFun_RV8803.h>
+#include <avr/wdt.h>
 
 // custom library
 #include <RadioConfiguration.h>
@@ -906,6 +907,7 @@ uint32_t aHexToInt(const char*&p)
 
 void setup()
 {
+    wdt_enable(WDTO_8S);
 #if USE_SERIAL > 0
     Serial.begin(9600);
 #endif
@@ -1002,7 +1004,8 @@ void setup()
 }
 
 void loop()
-{   auto now = millis();
+{   wdt_reset();
+    auto now = millis();
     static_assert(sizeof(now) == sizeof(msec_time_stamp_t), "msec_time_stamp_t must match type of millis()");
     auto previousInputRegister = InputRegister;
     auto previousOutputRegister = OutputRegister;
