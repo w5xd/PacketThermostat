@@ -328,7 +328,7 @@ protected:
                 fanIsOn = toupper(*p) == 'N';
                 if (fanIsOn)
                     Furnace::SetOutputBits(settingsFromEeprom.MaskFanOnly);
-                else
+                else if (fancoilState == STATE_OFF)
                     Furnace::ClearOutputBits(settingsFromEeprom.MaskFanOnly);
                 return true;
             }
@@ -351,6 +351,9 @@ protected:
 
                 OffOnExit offOnExit;
                 offOnExit.off = settingsFromEeprom.AlwaysOnMask;
+                if (fanIsOn)
+                    offOnExit.off |= settingsFromEeprom.MaskFanOnly;
+                fancoilState = STATE_OFF;
 
                 q += sizeof(HVAC_SETTINGS) - 1;
                 settingsFromEeprom.TemperatureTargetDegreesCx10 = aDecimalToInt(q);
@@ -759,19 +762,25 @@ protected:
     {
         if (HvacCool::ProcessCommand(cmd, len, senderid, toMe))
             return true;
-        static const char COOLT[] = "COOLTs="; // This is the AUTO cool setting only
-        const char* q = strstr(cmd, COOLT);
+        static const char AUTO[] = "AUTO_SETTINGS"; // This is the AUTO cool setting only
+        const char* q = strstr(cmd, AUTO);
         if (q)
         {
-            q += sizeof(COOLT) - 1;
+            q += sizeof(AUTO) - 1;
+            if (!*(q++)) return true;
             settingsFromEeprom.TemperatureTargetHeatDegreesCx10 = aDecimalToInt(q);
+            settingsFromEeprom.TemperatureActivateHeatDegreesCx10 = 
+                settingsFromEeprom.TemperatureTargetHeatDegreesCx10 - 6;
             if (!*q)
-            {   // default activate temperature
-                settingsFromEeprom.TemperatureActivateHeatDegreesCx10 = 
-                    settingsFromEeprom.TemperatureTargetHeatDegreesCx10 - 6;
                 return true;
-            }
             settingsFromEeprom.TemperatureActivateHeatDegreesCx10 = aDecimalToInt(q);
+            if (!*q)
+                return true;
+            settingsFromEeprom.HeatMaskStage1 = settingsFromEeprom.HeatMaskStage2 = settingsFromEeprom.HeatMaskStage3 = aHexToInt(q);
+            if (!*q) return true;
+            settingsFromEeprom.HeatMaskStage2 = aHexToInt(q);
+            if (!*q) return true;
+            settingsFromEeprom.HeatMaskStage3 = aHexToInt(q);
             return true;
         }
         return false;
