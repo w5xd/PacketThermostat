@@ -271,6 +271,7 @@ namespace
     msec_time_stamp_t HeatSafetyOffStartTime;
     uint8_t HeatSafetyShutoffMask;
     bool HeatSafetyOffTimeActive;
+    const char * const HeatSafetyBanner = "OVER!";
     int16_t TinletTemperatureCx10; // last calculated copy of TinleADCsum
 
     char cmdbuf[CMD_BUFLEN];
@@ -1062,6 +1063,7 @@ void loop()
         if ((now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
         {
             HeatSafetyOffTimeActive = false;
+            LCD::printBanner(hvac->ModeNameString());
             Furnace::SetOutputBits();
         }
     }
@@ -1083,6 +1085,7 @@ void loop()
                         { // table indicates this IS a heat mode, so shut down heat
                             HeatSafetyOffStartTime = millis();
                             HeatSafetyOffTimeActive = true;
+                            LCD::printBanner(HeatSafetyBanner);
                             HeatSafetyShutoffMask = ~m.toClear;
                             Furnace::SetOutputBits();
                             break;
@@ -1246,7 +1249,7 @@ void loop()
 
     if (LCD::reinit)
     {   // the LCD display seems to get out of sync. Force a full update of it occasionally
-        LCD::printBanner(hvac->ModeNameString());
+        LCD::printBanner(HeatSafetyOffTimeActive ? HeatSafetyBanner : hvac->ModeNameString());
         lcdHvacReport(OutputRegister & OUTPUT_SIGNAL_MASK);
         LCD::reinit = false;
     }
