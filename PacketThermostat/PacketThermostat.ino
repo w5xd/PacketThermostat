@@ -655,7 +655,7 @@ namespace
             sec = aDecimalToInt(p);
             dow = aDecimalToInt(p);
             rtc.setTime(sec, minute, hour, dow, day, month, year);
-#if USE_SERIAL > 0
+#if USE_SERIAL > 1
             Serial.print(F("Setting clock to year:"));
             Serial.print(year);
             Serial.print(F(" mon:"));
@@ -779,22 +779,14 @@ namespace
         else if (toupper(cmd[0]) == 'S' && toupper(cmd[1]) == 'E')
         {   // SE [which] [Celsiusx10] [HOUR] [MINUTE] [DAY-OF-WEEK-MASK]
             q = cmd + 2;
+            while (isspace(*q)) q += 1;
             uint8_t which = aDecimalToInt(q);
             if (which >= NUM_SCHEDULE_TEMPERATURE_ENTRIES) return false;
             ScheduleEntry_t se;
-            se.degreesCx5 = aDecimalToInt(q);
+            se.degreesCx5 = aDecimalToInt(q) >> 1; // x10 in command, saved as X5
             se.TimeOfDayHour = aDecimalToInt(q);
             se.TimeOfDayMinute = aDecimalToInt(q);
             se.DaysOfWeek = aHexToInt(q);
-            Serial.print("se: "); Serial.print((int)which);
-            Serial.print(" ");
-            Serial.print((int)se.degreesCx5);
-            Serial.print(" ");
-            Serial.print((int)se.TimeOfDayHour);
-            Serial.print(" ");
-            Serial.print((int)se.TimeOfDayHour);
-            Serial.print(" ");
-            Serial.println((int)se.DaysOfWeek);
             setScheduleEntry(which, se);
             return true;
         }
@@ -1126,18 +1118,20 @@ void loop()
         {
             lastScheduleUpdate = now;
             rtc.updateTime();
-            auto hrs = rtc.getHours();
-            auto mins = rtc.getMinutes();
-            auto weekday = rtc.getWeekday();
+            uint8_t hrs = rtc.getHours();
+            uint8_t mins = rtc.getMinutes();
+            int weekday = rtc.getWeekday();
             for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
             {
                 auto se = getScheduleEntry(i);
-                if ((0 != se.DaysOfWeek & (1 << weekday)) &&
+                if ((0 != ((int)se.DaysOfWeek & (1 << weekday))) &&
                     hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
                     mins == static_cast<uint8_t>(se.TimeOfDayMinute))
                 {
-                    snprintf(reportbuf, "%s %d", HVAC_SETTINGS, (int)se.degreesCx5 << 1);
+                    strcpy(reportbuf, HVAC_SETTINGS);
+                    itoa((int)se.degreesCx5 << 1, reportbuf + strlen(reportbuf), 10);
                     routeCommand(reportbuf, strlen(reportbuf));
+                    LCD::reinit = true;
                 }
             }
         }
