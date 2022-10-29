@@ -786,6 +786,15 @@ namespace
             se.TimeOfDayHour = aDecimalToInt(q);
             se.TimeOfDayMinute = aDecimalToInt(q);
             se.DaysOfWeek = aHexToInt(q);
+            Serial.print("se: "); Serial.print((int)which);
+            Serial.print(" ");
+            Serial.print((int)se.degreesCx5);
+            Serial.print(" ");
+            Serial.print((int)se.TimeOfDayHour);
+            Serial.print(" ");
+            Serial.print((int)se.TimeOfDayHour);
+            Serial.print(" ");
+            Serial.println((int)se.DaysOfWeek);
             setScheduleEntry(which, se);
             return true;
         }
