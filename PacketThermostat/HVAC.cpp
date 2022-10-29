@@ -26,6 +26,8 @@ THE SOFTWARE.
 #include <EEPROM.h>
 #include "ThermostatCommon.h"
 
+#define HVAC_AUTO_CLASS 0 // not enough program memory for all features
+
 #define SERIAL_DEBUG 0
 
 /* The various HVAC implementations are a mix of classes with subclasses, each itself being table-driven.
@@ -64,7 +66,11 @@ class HvacAuto; // subclass of HvacCool -- switches between heat/cool
 
 namespace
 {   // support these types of mappings from available inputs to furnace outputs:
-    enum HvacTypes { HVAC_PASSTHROUGH, HVAC_MAPINPUTTOOUTPUT, HVAC_HEAT, HVAC_COOL, HVAC_AUTO, NUMBER_OF_HVAC_TYPES };
+    enum HvacTypes { HVAC_PASSTHROUGH, HVAC_MAPINPUTTOOUTPUT, HVAC_HEAT, HVAC_COOL, 
+#if HVAC_AUTO_CLASS
+        HVAC_AUTO,
+#endif
+        NUMBER_OF_HVAC_TYPES };
     const int NUM_INPUT_SIGNAL_COMBINATIONS = 1 << NUM_HVAC_INPUT_SIGNALS;
 
     const int HVAC_EEPROM_TYPE_AND_MODE_ADDR = HVAC_EEPROM_START; // .ino source tells this C++ module where to start
@@ -102,6 +108,8 @@ namespace
     uint16_t AddressOfModeTypeSettings(HvacTypes t, uint8_t which);
     const int NAME_LENGTH = 5; // without trailing null
 }
+
+const char HVAC_SETTINGS[] = "HVAC_SETTINGS ";
 
 /* These classes have a lot of member variables that are static.
 ** This is an optimization to keep memory usage down by taking
@@ -333,7 +341,6 @@ protected:
                 return true;
             }
 
-            static const char HVAC_SETTINGS[] = "HVAC_SETTINGS ";
             q = strstr(cmd, HVAC_SETTINGS);
             if (q)
             {   // fill in the thermostat parameters
@@ -357,12 +364,9 @@ protected:
 
                 q += sizeof(HVAC_SETTINGS) - 1;
                 settingsFromEeprom.TemperatureTargetDegreesCx10 = aDecimalToInt(q);
-                if (!*q) 
-                {
-                    // default activate temperature if not given
-                    settingsFromEeprom.TemperatureActivateDegreesCx10 = ActivateTemperatureFromTarget(settingsFromEeprom.TemperatureTargetDegreesCx10);
-                    return true;
-                }
+                // default activate temperature if not given
+                settingsFromEeprom.TemperatureActivateDegreesCx10 = ActivateTemperatureFromTarget(settingsFromEeprom.TemperatureTargetDegreesCx10);
+                if (!*q) return true;
                 settingsFromEeprom.TemperatureActivateDegreesCx10 = aDecimalToInt(q);
                 if (!*q) return true;
                 settingsFromEeprom.SensorMask = aHexToInt(q);
@@ -690,6 +694,7 @@ protected:
     static Settings settingsFromEeprom;
 };
 
+#if HVAC_AUTO_CLASS  
 class HvacAuto : public HvacCool
 {
 public:
@@ -820,7 +825,7 @@ protected:
     enum {HEAT_OFF, HEAT_STAGE1, HEAT_STAGE2, HEAT_STAGE3} heatState;
     static Settings settingsFromEeprom;
 };
-
+#endif
 namespace
 {
     //  need exactly one instance of each thermostat type
@@ -828,7 +833,9 @@ namespace
     MapInputToOutput mapInputToOutput;
     HvacHeat hvacHeat;
     HvacCool hvacCool;
+#if HVAC_AUTO_CLASS
     HvacAuto hvacAuto;
+#endif
 
     HvacCommands* const ThermostatModeTypes[NUMBER_OF_HVAC_TYPES] =
     {   // Order must match enum HvacTypes
@@ -836,7 +843,9 @@ namespace
         &mapInputToOutput,
         &hvacHeat,
         &hvacCool,
+#if HVAC_AUTO_CLASS
         &hvacAuto
+#endif
     };
 
     uint16_t AddressOfModeTypeSettings(HvacTypes t, uint8_t which)
@@ -851,9 +860,11 @@ namespace
             sze += sizeof(MapInputToOutput::Settings);
             break; // remainder do not inherit from MapInputToOutput
 
+#if HVAC_AUTO_CLASS
         case HVAC_AUTO:
             sze += sizeof(HvacAuto::Settings); // inherits from those below
             // fall through cuz inherits from
+#endif
         case HVAC_COOL:
             sze += sizeof(HvacCool::Settings);
             // fall through cuz inherits from
@@ -880,9 +891,11 @@ namespace
         case HVAC_COOL:
             ret = AddressOfModeTypeSettings(HVAC_HEAT, NumberOfModesInType(HVAC_HEAT)) + which * sze;
             break;
+#if HVAC_AUTO_CLASS
         case HVAC_AUTO:
             ret = AddressOfModeTypeSettings(HVAC_COOL, NumberOfModesInType(HVAC_COOL)) + which * sze;
             break;
+#endif
         default:
             return -1;
         }
@@ -1064,5 +1077,7 @@ OverrideAndDriveFromSensors::FurnaceState OverrideAndDriveFromSensors::fancoilSt
 bool OverrideAndDriveFromSensors::fanIsOn;
 uint16_t OverrideAndDriveFromSensors::previousActual = 0;
 
-HvacAuto::Settings HvacAuto::settingsFromEeprom;
 HvacCool::Settings HvacCool::settingsFromEeprom;
+#if HVAC_AUTO_CLASS
+HvacAuto::Settings HvacAuto::settingsFromEeprom;
+#endif

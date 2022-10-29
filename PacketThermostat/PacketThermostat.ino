@@ -81,11 +81,10 @@ THE SOFTWARE. */
 #include <RadioConfiguration.h>
 #include "ThermostatCommon.h"
 
-//#undef F
-//#define F(x) x
-
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
 #define SERIAL_DEBUG 0 // extra output
+
+#define SCHEDULE_ENTRIES 1 // set to zero to remove this feature
 
 namespace LCD {
     const byte MODE_COLUMN = 0;
@@ -205,6 +204,16 @@ namespace
     };
     static_assert(sizeof(HeatSafetyMask_t) == 3, "no padding");
     const int NUM_HEAT_SAFETY_ENTRIES = 3;
+#if SCHEDULE_ENTRIES
+    struct ScheduleEntry_t {
+        uint8_t degreesCx5; // 255 max, 255/5 = 51 degrees C (way too hot)
+        unsigned TimeOfDayHour : 5; // 0 to 23
+        unsigned TimeOfDayMinute: 6; // 0 to 60
+        unsigned DaysOfWeek: 7; // bit mask, 
+        ScheduleEntry_t() : degreesCx5(0), TimeOfDayHour(0), TimeOfDayMinute(0), DaysOfWeek(0){}
+        };
+    const int NUM_SCHEDULE_TEMPERATURE_ENTRIES = 4;
+#endif
     enum class EepromAddresses {PACKET_THERMOSTAT_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
                 SIGNAL_LABEL_ASSIGNMENT = PACKET_THERMOSTAT_START,
                 DISPLAY_UNITS_ADDRESS = SIGNAL_LABEL_ASSIGNMENT + (OutregBits::NUMBER_OF_SIGNALS * MAX_WIRE_NAME_LEN),
@@ -213,7 +222,12 @@ namespace
                 HEATSAFETY_HOLD_SECONDS =  COMPRESSOR_HOLD_SECONDS + 2,
                 HEATSAFETY_TRIGGER_TEMPERATURECx10 = HEATSAFETY_HOLD_SECONDS + 2,
                 HEATSAFETY_MAP = HEATSAFETY_TRIGGER_TEMPERATURECx10 + 2,
-                TOTAL_EEPROM_USED = HEATSAFETY_MAP + NUM_HEAT_SAFETY_ENTRIES * sizeof(HeatSafetyMask_t)
+                SCHEDULE_TEMPERATURE_ENTRIES = HEATSAFETY_MAP + NUM_HEAT_SAFETY_ENTRIES * sizeof(HeatSafetyMask_t),
+#if SCHEDULE_ENTRIES
+                TOTAL_EEPROM_USED = SCHEDULE_TEMPERATURE_ENTRIES + NUM_SCHEDULE_TEMPERATURE_ENTRIES * sizeof(ScheduleEntry_t)
+#else
+                TOTAL_EEPROM_USED = SCHEDULE_TEMPERATURE_ENTRIES
+#endif
     };
 
     // Arduino pin assignments **********************************************************
@@ -435,6 +449,29 @@ namespace
             EEPROM.put(addr, m);
         }
     }
+
+#if SCHEDULE_ENTRIES
+    void setScheduleEntry(uint8_t which, const ScheduleEntry_t& se)
+    {
+        if (which < NUM_SCHEDULE_TEMPERATURE_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::SCHEDULE_TEMPERATURE_ENTRIES) + which * sizeof(se);
+            EEPROM.put(addr, se);
+        }
+    }
+
+    ScheduleEntry_t getScheduleEntry(uint8_t which)
+    {
+        ScheduleEntry_t ret;
+        if (which < NUM_SCHEDULE_TEMPERATURE_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::SCHEDULE_TEMPERATURE_ENTRIES);
+            addr += which * sizeof(ret);
+            EEPROM.get(addr, ret);
+        }
+        return ret;
+    }
+#endif
 
     char *reportHvac(char *p, uint8_t mask, char t)
     {
@@ -699,23 +736,24 @@ namespace
         }
         else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'S')
         {
-            q = cmd+2;
+            q = cmd + 2;
             while (isspace(*q)) q += 1;
             auto c = *q++;
-            while (isspace(*q)) q += 1;
-            switch (c)
-            {
-            case 'C': // set temperature in Celsius
-                setHeatSafetyTemperatureX10(aDecimalToInt(q));
-                return true;
+            if (c != 0) {
+                while (isspace(*q)) q += 1;
+                switch (c)
+                {
+                case 'C': // set temperature in Celsius
+                    setHeatSafetyTemperatureX10(aDecimalToInt(q));
+                    return true;
 
-            case 'T': // set timer in  seconds
-                setHeatSafetyHoldSeconds(aDecimalToInt(q));
-                return true;
+                case 'T': // set timer in  seconds
+                    setHeatSafetyHoldSeconds(aDecimalToInt(q));
+                    return true;
 
-            case '1':
-            case '2':
-            case '3':
+                case '1':
+                case '2':
+                case '3':
                 {
                     int which = c - '1';
                     HeatSafetyMask_t m;
@@ -725,17 +763,32 @@ namespace
                     if (*q)
                         m.toClear = aHexToInt(q);
                     setHeatSafetyMask(which, m);
-#if SERIAL_DEBUG > 0
+    #if SERIAL_DEBUG > 0
                     Serial.print("Set Safety mask i=");
                     Serial.print(which);
                     Serial.print(" dc=0x"); Serial.print(m.dontCareMask, HEX);
                     Serial.print(" mm=0x"); Serial.print(m.mustMatchMask, HEX);
                     Serial.print(" tc=0x"); Serial.println(m.toClear, HEX);
-#endif
+    #endif
                 }
                 return true;
+                }
             }
         }
+#if SCHEDULE_ENTRIES
+        else if (toupper(cmd[0]) == 'S' && toupper(cmd[1]) == 'E')
+        {   // SE [which] [Celsiusx10] [HOUR] [MINUTE] [DAY-OF-WEEK-MASK]
+            q = cmd + 2;
+            uint8_t which = aDecimalToInt(q);
+            if (which >= NUM_SCHEDULE_TEMPERATURE_ENTRIES) return false;
+            ScheduleEntry_t se;
+            se.degreesCx5 = aDecimalToInt(q);
+            se.TimeOfDayHour = aDecimalToInt(q);
+            se.TimeOfDayMinute = aDecimalToInt(q);
+            se.DaysOfWeek = aHexToInt(q);
+            setScheduleEntry(which, se);
+        }
+#endif
 #if SERIAL_DEBUG > 0
         else if (toupper(cmd[0]) == 'U' && toupper(cmd[1]) == 'O' && cmd[2] == '=' && cmd[3] == '0' && cmd[4]=='x')
         {
@@ -1012,9 +1065,10 @@ void loop()
     auto previousOutputRegister = OutputRegister;
 
     {   // every second (or so) update the RTC time on the LCD
-        static const unsigned long LCD_TIME_UPDATE_MSEC = 1000;
+        const unsigned long LCD_TIME_UPDATE_MSEC = 1000;
         static unsigned long lastLCDupdate;
         static bool firstTime=true;
+        static_assert(sizeof(lastLCDupdate) == sizeof(now), "lastLCDupdate wrong size");
         int diff = now - lastLCDupdate;
         if (diff > LCD_TIME_UPDATE_MSEC)
         {
@@ -1051,6 +1105,34 @@ void loop()
             }
         }
     }
+
+#if SCHEDULE_ENTRIES
+    {   // check schedule slightly faster than once per minute
+        const unsigned long SCEDULE_TIME_UPDATE_MSEC = 40000; // less than one minute
+        static unsigned long lastScheduleUpdate;
+        static_assert(sizeof(lastScheduleUpdate) == sizeof(now), "lastScheduleUpdate wrong size");
+        int diff = now - lastScheduleUpdate;
+        if (diff > SCEDULE_TIME_UPDATE_MSEC)
+        {
+            lastScheduleUpdate = now;
+            rtc.updateTime();
+            auto hrs = rtc.getHours();
+            auto mins = rtc.getMinutes();
+            auto weekday = rtc.getWeekday();
+            for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
+            {
+                auto se = getScheduleEntry(i);
+                if ((0 != se.DaysOfWeek & (1 << weekday)) &&
+                    hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
+                    mins == static_cast<uint8_t>(se.TimeOfDayMinute))
+                {
+                    snprintf(reportbuf, "%s %d", HVAC_SETTINGS, (int)se.degreesCx5 << 1);
+                    routeCommand(reportbuf, strlen(reportbuf));
+                }
+            }
+        }
+    }
+#endif
 
     if (CompressorOffTimeActive && (now - CompressorOffStartTime) > 1000L * getCompressorHoldSeconds())
     {   // deal with possible expiration of the compressor short cycle prevention timer

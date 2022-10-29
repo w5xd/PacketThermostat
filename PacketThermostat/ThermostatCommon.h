@@ -24,3 +24,4 @@ public:
 
 extern ThermostatCommon *hvac;
 extern const int HVAC_EEPROM_START;
+extern const char HVAC_SETTINGS[];
