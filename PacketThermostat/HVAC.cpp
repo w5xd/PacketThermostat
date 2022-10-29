@@ -26,7 +26,7 @@ THE SOFTWARE.
 #include <EEPROM.h>
 #include "ThermostatCommon.h"
 
-#define HVAC_AUTO_CLASS 0 // not enough program memory for all features
+#define HVAC_AUTO_CLASS 1 // not enough program memory for all features
 
 /* The various HVAC implementations are a mix of classes with subclasses, each itself being table-driven.
 ** There is a trivial class, PassThrough, and four (interesting) classes.
