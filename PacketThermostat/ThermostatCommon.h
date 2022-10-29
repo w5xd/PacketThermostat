@@ -20,6 +20,10 @@ public:
     virtual const char *ModeNameString() = 0;
     virtual bool GetTargetAndActual(int16_t &targetCx10, int16_t &actualCx10) = 0;
     virtual void loop(msec_time_stamp_t now) = 0;
+    uint8_t TypeNumber() const { return MyTypeNumber; }
+protected:
+    static uint8_t MyTypeNumber;
+
 };
 
 extern ThermostatCommon *hvac;

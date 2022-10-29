@@ -176,7 +176,6 @@ protected:
     static Settings settingsFromEeprom;
 public:
     static uint8_t MyModeNumber;
-    static uint8_t MyTypeNumber;
 };
 
 class PassThrough : public HvacCommands
@@ -1066,7 +1065,7 @@ HvacCommands::Settings HvacCommands::settingsFromEeprom = {
 };
 
 uint8_t HvacCommands::MyModeNumber;
-uint8_t HvacCommands::MyTypeNumber;
+uint8_t ThermostatCommon::MyTypeNumber;
 MapInputToOutput::Settings MapInputToOutput::settingsFromEeprom;
 
 OverrideAndDriveFromSensors::Settings OverrideAndDriveFromSensors::settingsFromEeprom;

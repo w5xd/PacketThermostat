@@ -832,6 +832,7 @@ namespace
             int16_t targetCx10; int16_t actualCx10;
             bool tempOK = hvac->GetTargetAndActual( targetCx10, actualCx10);
             auto temp = hvac;
+            auto tempType = hvac->TypeNumber();
             if (hvac->ProcessCommand(cmd, len, senderid, toMe))
             {
 #if USE_SERIAL > 0
@@ -840,7 +841,7 @@ namespace
                 if (temp != hvac)
                 {
                     LCD::printMode(hvac->ModeNameString());
-                    if (tempOK)
+                    if (tempOK && hvac->TypeNumber() == tempType)
                         setTemperatureCx10(targetCx10);
                 }
                 InputsToHvacFlag = true;
