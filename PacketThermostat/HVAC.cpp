@@ -28,8 +28,6 @@ THE SOFTWARE.
 
 #define HVAC_AUTO_CLASS 0 // not enough program memory for all features
 
-#define SERIAL_DEBUG 0
-
 /* The various HVAC implementations are a mix of classes with subclasses, each itself being table-driven.
 ** There is a trivial class, PassThrough, and four (interesting) classes.
 ** Each of the four classes has runtime parameters that themselves are saved in EEPROM tables.
@@ -144,13 +142,13 @@ protected:
 
     uint16_t WriteEprom(uint16_t addr)
     {
- #if SERIAL_DEBUG > 0
+ #if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("HvacCommands::WriteEprom a=0X"));
         Serial.println(addr, HEX);
 #endif
         EEPROM.put(addr, settingsFromEeprom);
         auto ret = addr + sizeof(settingsFromEeprom);
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
         int remaining = EEPROM.length();
         remaining -= ret;
         if (remaining < 0)
@@ -165,7 +163,7 @@ protected:
     }
     uint16_t ReadEprom(uint16_t addr)
     {
- #if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("HvacCommands::ReadEprom a=0X"));
         Serial.println(addr, HEX);
 #endif
@@ -232,7 +230,7 @@ protected:
                     return false; // mal-formed command tried to write past end of array
 
                 uint8_t v = static_cast<uint8_t>(aHexToInt(q));
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
                 Serial.print(F("Map: "));
                 Serial.print((int) addr, DEC);
                 Serial.print(F(" v=0x"));
@@ -254,7 +252,7 @@ protected:
 
     uint16_t WriteEprom(uint16_t addr)
     {
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("MapInputToOutput::WriteEprom "));
         for (uint8_t i = 0; i < 16; i++)
         {
@@ -271,7 +269,7 @@ protected:
     {
         addr = HvacCommands::ReadEprom(addr);
         EEPROM.get(addr, settingsFromEeprom);
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("MapInputToOutput: "));
         for (uint8_t i = 0; i < 16; i++)
         {
@@ -388,7 +386,7 @@ protected:
         }
 
         uint32_t mask = 1L << senderid;
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("C command. mask=0x"));
         Serial.print((int)mask, HEX);
         Serial.print(F(" SensorMask=0x"));
@@ -521,7 +519,7 @@ protected:
     uint16_t WriteEprom(uint16_t addr)
     {
         addr = HvacCommands::WriteEprom(addr);
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("OverrideAndDriveFromSensors::WriteEprom a=0X"));
         Serial.print(addr, HEX);
         Serial.print(F(" t="));
@@ -534,7 +532,7 @@ protected:
     {
         addr = HvacCommands::ReadEprom(addr);
         EEPROM.get(addr, settingsFromEeprom);
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("OverrideAndDriveFromSensors::ReadEprom a="));
         Serial.print(addr, HEX);
         Serial.print(F(" t="));
@@ -578,7 +576,7 @@ class HvacHeat : public OverrideAndDriveFromSensors
 protected:
     bool OnReceivedTemperatureInput(int16_t degCx10) override
     {
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("HvacHeat::OnReceivedTemperatureInput t="));
         Serial.println(degCx10);
 #endif
@@ -674,7 +672,7 @@ protected:
     }
     uint16_t WriteEprom(uint16_t addr)    {
         addr = OverrideAndDriveFromSensors::WriteEprom(addr);
-#if SERIAL_DEBUG > 1
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("OverrideAndDriveFromSensors::WriteEprom a=0x"));
         Serial.println(addr, HEX);
 #endif
@@ -796,7 +794,7 @@ protected:
     uint16_t WriteEprom(uint16_t addr)
     {
         addr = HvacCool::WriteEprom(addr);
-#if SERIAL_DEBUG > 1
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("HvacAuto::WriteEprom a=0x"));
         Serial.println(addr, HEX);
 #endif
@@ -807,7 +805,7 @@ protected:
     {
         addr = HvacCool::ReadEprom(addr);
         EEPROM.get(addr, settingsFromEeprom);
-#if SERIAL_DEBUG > 1
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("HvacAuto::ReadEprom t="));
         Serial.print(settingsFromEeprom.TemperatureTargetHeatDegreesCx10);
         Serial.print(" a=0x");
@@ -896,7 +894,7 @@ namespace
         default:
             return -1;
         }
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print("AddressOfModeTypeSettings type=");
         Serial.print(static_cast<int>(t));
         Serial.print(" which=");
@@ -918,7 +916,7 @@ void ThermostatCommon::setup()
 {
     uint8_t thermoType = EEPROM.read(HVAC_EEPROM_TYPE_AND_MODE_ADDR);
     uint8_t thermoMode = EEPROM.read(HVAC_EEPROM_TYPE_AND_MODE_ADDR+1);
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
     Serial.print("ThermostatCommon::setup() type=");
     Serial.print((int)thermoType);
     Serial.print(" mode=");
@@ -978,7 +976,7 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
             count += 1;
         }
         *name++ = 0;
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("HVAC ModeName=\""));
         Serial.print(settingsFromEeprom.ModeName);
         Serial.println("\"");
@@ -992,7 +990,7 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
         q += sizeof(COMMIT_COMMAND) - 1;
         if (*q && !isspace(*q))
             return false;
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("Commit MODE="));
         Serial.println(MyModeNumber);
 #endif
@@ -1000,7 +998,7 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
         return true;
     }
 
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
     Serial.print(F("hvacType="));
     Serial.println(hvacType);
 #endif
@@ -1022,13 +1020,13 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
         {
             MyModeNumber = mode;
             MyTypeNumber = static_cast<uint8_t>(hvacType);
-    #if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
             uint16_t addr = AddressOfModeTypeSettings(tp, mode);
             Serial.print(F("HvacCommands::ProcessCommand addr="));
             Serial.print(addr);
             Serial.print(F(" mode:"));
             Serial.println(mode);
-    #endif
+#endif
             HvacCommands *temp;
             hvac = temp = ThermostatModeTypes[hvacType];
             temp->InitializeState();
@@ -1046,7 +1044,7 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
         q += sizeof(COUNT_COMMAND) - 1;
         auto count = aDecimalToInt(q);
         SetNumberOfModesInType(tp, count);
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("SetNumberOfModesInType tp="));
         Serial.print(hvacType);
         Serial.print(" c=");

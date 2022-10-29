@@ -113,9 +113,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HVAC.cpp" />
+    <ClCompile Include="Rfm69RawFrequency.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PcbSignalDefinitions.h" />
+    <ClInclude Include="Rfm69RawFrequency.h" />
     <ClInclude Include="ThermostatCommon.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -80,9 +80,9 @@ THE SOFTWARE. */
 // custom library
 #include <RadioConfiguration.h>
 #include "ThermostatCommon.h"
+#include "Rfm69RawFrequency.h"
 
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
-#define SERIAL_DEBUG 0 // extra output
 
 #define SCHEDULE_ENTRIES 1 // set to zero to remove this feature
 
@@ -212,7 +212,7 @@ namespace
         unsigned DaysOfWeek: 7; // bit mask, 
         ScheduleEntry_t() : degreesCx5(0), TimeOfDayHour(0), TimeOfDayMinute(0), DaysOfWeek(0){}
         };
-    const int NUM_SCHEDULE_TEMPERATURE_ENTRIES = 4;
+    const int NUM_SCHEDULE_TEMPERATURE_ENTRIES = 16;
 #endif
     enum class EepromAddresses {PACKET_THERMOSTAT_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
                 SIGNAL_LABEL_ASSIGNMENT = PACKET_THERMOSTAT_START,
@@ -290,7 +290,7 @@ namespace
 
     char cmdbuf[CMD_BUFLEN];
     unsigned char charsInBuf;
-    RFM69 radio(RFM69_SPI_CS_PIN, RMF69_INT_PIN);
+    RFM69rawFrequency radio(RFM69_SPI_CS_PIN, RMF69_INT_PIN);
     RadioConfiguration radioConfiguration;
     bool radioSetupOK = false;
     const uint8_t GATEWAY_NODEID = 1;
@@ -323,7 +323,7 @@ namespace
 
     void radioPrintInfo()
     {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETUP
         Serial.print(F("Node "));
         Serial.print(radioConfiguration.NodeId(), DEC);
         Serial.print(F(" on network "));
@@ -333,8 +333,8 @@ namespace
         Serial.print(F(" key "));
         radioConfiguration.printEncryptionKey(Serial);
         Serial.println();
-        Serial.print(F("Freq= ")); Serial.print(radio.getFrequency() / 1000);
-        Serial.println(F(" KHz"));
+        Serial.print(F("FreqRaw= ")); Serial.print(radio.getFrequencyRaw() );
+        Serial.println(F(" raw"));
 #endif
     }
 
@@ -509,7 +509,7 @@ namespace
     {
         if (i < NUMBER_OF_SIGNALS) {
             int addr = static_cast<int>(EepromAddresses::SIGNAL_LABEL_ASSIGNMENT) + (i * MAX_WIRE_NAME_LEN);
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
             Serial.print(F("setHvacWireName("));
             Serial.print((int)i); Serial.print(F(","));
             auto q = p;
@@ -606,7 +606,7 @@ namespace
         while (*p++ = *q++);
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
         Serial.print(radioSetupOK ? "Radio: " : "Not sent ");
         Serial.println(reportbuf);
 #endif
@@ -630,7 +630,7 @@ namespace
         while (*p++ = *q++);
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(radioSetupOK ? "Radio: " : "Not sent ");
         Serial.println(reportbuf);
 #endif
@@ -655,7 +655,7 @@ namespace
             sec = aDecimalToInt(p);
             dow = aDecimalToInt(p);
             rtc.setTime(sec, minute, hour, dow, day, month, year);
-#if USE_SERIAL > 1
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
             Serial.print(F("Setting clock to year:"));
             Serial.print(year);
             Serial.print(F(" mon:"));
@@ -668,7 +668,7 @@ namespace
         else if (toupper(cmd[0]) == 'I')
         {
             radioPrintInfo();
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
             Serial.print(F("Compressor Off active ="));
             Serial.println(CompressorOffTimeActive ? "active" : "off");
 #endif
@@ -763,13 +763,13 @@ namespace
                     if (*q)
                         m.toClear = aHexToInt(q);
                     setHeatSafetyMask(which, m);
-    #if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
                     Serial.print("Set Safety mask i=");
                     Serial.print(which);
                     Serial.print(" dc=0x"); Serial.print(m.dontCareMask, HEX);
                     Serial.print(" mm=0x"); Serial.print(m.mustMatchMask, HEX);
                     Serial.print(" tc=0x"); Serial.println(m.toClear, HEX);
-    #endif
+#endif
                 }
                 return true;
                 }
@@ -791,7 +791,11 @@ namespace
             return true;
         }
 #endif
-#if SERIAL_DEBUG > 0
+#if USE_SERIAL >= SERIAL_PORT_DEBUG
+        else if (strcmp(cmd, "CRASH") == 0)
+        {
+            ProcessCommand(cmd, len);
+        }
         else if (toupper(cmd[0]) == 'U' && toupper(cmd[1]) == 'O' && cmd[2] == '=' && cmd[3] == '0' && cmd[4]=='x')
         {
             q = cmd+5;
@@ -806,7 +810,7 @@ namespace
 
     void routeCommand(char* cmd, unsigned char len, uint8_t senderid = -1, bool toMe = true)
     {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
         Serial.print(F("Command: ")); Serial.print(cmd); 
         if (senderid != static_cast<uint8_t>(-1))
         {
@@ -817,13 +821,13 @@ namespace
 #endif
         if (toMe && radioConfiguration.ApplyCommand(cmd))
         {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
             Serial.println(F("Command accepted for radio"));
 #endif
         }
         else if (toMe && ProcessCommand(cmd, len))
         {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
             Serial.println(F("Command accepted for main"));
 #endif
         }
@@ -835,7 +839,7 @@ namespace
             auto tempMode = hvac->ModeNumber();
             if (hvac->ProcessCommand(cmd, len, senderid, toMe))
             {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
                 Serial.println(F("Command accepted for HVAC"));
 #endif
                 LCD::printMode(hvac->ModeNameString());
@@ -910,8 +914,8 @@ namespace Furnace {
 
         OutputRegister = mask;
 #if ENABLE_OUTPUT_RELAYS > 0
-#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
-        Serial.print(F("UpdateOutputs: 0x")); 
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
+        Serial.print(F("UpdateOutputs: 0x"));
         Serial.println(mask, HEX);
 #endif
         SPI.beginTransaction(SPISettings(3000000, MSBFIRST, SPI_MODE0));
@@ -982,9 +986,18 @@ uint32_t aHexToInt(const char*&p)
 
 void setup()
 {
-    wdt_enable(WDTO_8S);
-#if USE_SERIAL > 0
+#if USE_SERIAL > SERIAL_PORT_OFF
     Serial.begin(9600);
+#endif
+#if USE_SERIAL >= SERIAL_PORT_DEBUG 
+    for (uint8_t i = 0; i < 1500; i++)
+        if (Serial.read() >= 0)
+            break;
+        else
+            delay(10);
+    Serial.println(F("PacketThermostat DEBUG"));
+#elif USE_SERIAL >= SERIAL_PORT_OFF 
+    Serial.println(F("PacketThermostat Rev03"));
 #endif
 
     digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
@@ -995,28 +1008,16 @@ void setup()
     SPI.begin();
     Furnace::UpdateOutputs(0);
 
-#if USE_SERIAL > 0
-#if SERIAL_DEBUG > 0
-    for (uint8_t i = 0; i < 1500; i++)
-        if (Serial.read() >= 0)
-            break;
-        else
-            delay(10);
-    Serial.println(F("PacketThermostat DEBUG"));
-#else
-    Serial.println(F("PacketThermostat Rev03"));
-#endif
-#endif
     // setup radio
     // setup RTC
     if (rtc.begin() == false)
     {
-#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE 
         Serial.println(F("rtc begin FAILED"));
 #endif
     } else {
         rtc.set24Hour();
-#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE 
         Serial.println(F("rtc begin OK!"));
         rtc.setToCompilerTime();
         String ct = rtc.stringTime();
@@ -1036,22 +1037,22 @@ void setup()
         if (ok)
         {
             uint32_t freq;
-            if (radioConfiguration.FrequencyKHz(freq))
-                radio.setFrequency(1000 * freq);
+            if (radioConfiguration.FrequencyRaw(freq))
+                radio.setFrequencyRaw(freq);
             radio.spyMode(true);
-            radioSetupOK = radio.getFrequency() != 0;
+            radioSetupOK = radio.getFrequencyRaw() != 0;
         }
-    #if SERIAL_DEBUG > 1 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_DEBUG
         Serial.println(ok ? "Radio init OK!" : "Radio init FAILED");
         radioPrintInfo();
-    #endif   
+#endif   
     }
     else
     {
-    #if SERIAL_DEBUG > 1 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.println("Radio EEPROM not setup");
         radioPrintInfo();
-    #endif   
+#endif   
     }
 
     if (radioSetupOK)
@@ -1076,6 +1077,8 @@ void setup()
     pinMode(PCB_INPUT_R_ACTIVE_PIN, INPUT_PULLUP);
 
     ThermostatCommon::setup();
+
+    wdt_enable(WDTO_8S);
 }
 
 void loop()
@@ -1309,7 +1312,7 @@ void loop()
     }
 
     // check for Serial input
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_PROMPT_ONLY
     while (Serial.available())
     {
         auto c = Serial.read();
@@ -1338,7 +1341,7 @@ void loop()
         routeCommand(reportbuf, sizeof(radio.DATA), static_cast<uint8_t>(radio.SENDERID), toMe);
         if (toMe && radio.ACKRequested())
             radio.sendACK();
-#if SERIAL_DEBUG > 1 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("FromRadio: \""));
         Serial.print(reportbuf);
         Serial.print(F("\" sender:"));

@@ -21,9 +21,15 @@
     <ClInclude Include="ThermostatCommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Rfm69RawFrequency.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HVAC.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rfm69RawFrequency.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
