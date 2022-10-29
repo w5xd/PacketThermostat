@@ -867,9 +867,10 @@ namespace
 
     void setTemperatureCx10(int16_t t)
     {
-        strcpy(reportbuf, HVAC_SETTINGS);
-        itoa(t, reportbuf + strlen(reportbuf), 10);
-        routeCommand(reportbuf, strlen(reportbuf));
+        static char buf[20];
+        strcpy(buf, HVAC_SETTINGS);
+        itoa(t, buf + strlen(buf), 10);
+        routeCommand(buf, strlen(buf));
     }
 }
 
