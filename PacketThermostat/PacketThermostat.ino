@@ -811,13 +811,13 @@ namespace
         else
             Serial.println();
 #endif
-        if (radioConfiguration.ApplyCommand(cmd))
+        if (toMe && radioConfiguration.ApplyCommand(cmd))
         {
 #if USE_SERIAL > 0
             Serial.println(F("Command accepted for radio"));
 #endif
         }
-        else if (ProcessCommand(cmd, len))
+        else if (toMe && ProcessCommand(cmd, len))
         {
 #if USE_SERIAL > 0
             Serial.println(F("Command accepted for main"));
