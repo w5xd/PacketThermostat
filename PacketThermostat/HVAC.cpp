@@ -174,8 +174,6 @@ protected:
         return addr + sizeof(settingsFromEeprom);
     }
     static Settings settingsFromEeprom;
-public:
-    static uint8_t MyModeNumber;
 };
 
 class PassThrough : public HvacCommands
@@ -1064,7 +1062,7 @@ HvacCommands::Settings HvacCommands::settingsFromEeprom = {
     {'P', 'A', 'S', 'S'}
 };
 
-uint8_t HvacCommands::MyModeNumber;
+uint8_t ThermostatCommon::MyModeNumber;
 uint8_t ThermostatCommon::MyTypeNumber;
 MapInputToOutput::Settings MapInputToOutput::settingsFromEeprom;
 

@@ -831,14 +831,15 @@ namespace
         {
             int16_t targetCx10; int16_t actualCx10;
             bool tempOK = hvac->GetTargetAndActual( targetCx10, actualCx10);
-            auto temp = hvac->TypeNumber();
+            auto tempType = hvac->TypeNumber();
+            auto tempMode = hvac->ModeNumber();
             if (hvac->ProcessCommand(cmd, len, senderid, toMe))
             {
 #if USE_SERIAL > 0
                 Serial.println(F("Command accepted for HVAC"));
 #endif
                 LCD::printMode(hvac->ModeNameString());
-                if (tempOK && hvac->TypeNumber() == temp)
+                if (tempOK && hvac->TypeNumber() == tempType && hvac->ModeNumber() != tempMode)
                     setTemperatureCx10(targetCx10);
                 InputsToHvacFlag = true;
             }
