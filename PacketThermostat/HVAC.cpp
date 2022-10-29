@@ -155,8 +155,8 @@ protected:
             Serial.println(F("ERROR: WriteEprom beyond capacity"));
         else
         {
-            Serial.print(F("EEPROM remaining: 0x"));
-            Serial.println(remaining, HEX);
+            Serial.print(F("EEPROM remaining:"));
+            Serial.println(remaining);
         }
 #endif
         return ret;
