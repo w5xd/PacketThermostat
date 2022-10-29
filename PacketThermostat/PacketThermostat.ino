@@ -601,17 +601,18 @@ namespace
         p = formatTemperature(p, degreesCx10FromC7089ADC(tOutsideCx10), 's');
         *p++ = ' ';
 
-        int16_t t; int16_t a;
-        if (hvac->GetTargetAndActual(t, a))
-        {
-            p = formatTemperature(p, t, 't');
-            *p++ = ' ';
-            p = formatTemperature(p, a, 'a');
-            *p++ = ' ';
-        }
         rtc.updateTime();
         auto q = rtc.stringTime8601();
         while (*p++ = *q++);
+
+        int16_t t; int16_t a;
+        if (hvac->GetTargetAndActual(t, a))
+        {
+            *p++ = ' ';
+            p = formatTemperature(p, t, 't');
+            *p++ = ' ';
+            p = formatTemperature(p, a, 'a');
+        }
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
 #if USE_SERIAL >= SERIAL_PORT_VERBOSE
