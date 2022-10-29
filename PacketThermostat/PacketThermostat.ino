@@ -787,6 +787,7 @@ namespace
             se.TimeOfDayMinute = aDecimalToInt(q);
             se.DaysOfWeek = aHexToInt(q);
             setScheduleEntry(which, se);
+            return true;
         }
 #endif
 #if SERIAL_DEBUG > 0
