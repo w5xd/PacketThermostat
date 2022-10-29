@@ -333,8 +333,7 @@ namespace
         Serial.print(F(" key "));
         radioConfiguration.printEncryptionKey(Serial);
         Serial.println();
-        Serial.print(F("FreqRaw= ")); Serial.print(radio.getFrequencyRaw() );
-        Serial.println(F(" raw"));
+        Serial.print(F("FreqRaw=")); Serial.println(radio.getFrequencyRaw() );
 #endif
     }
 

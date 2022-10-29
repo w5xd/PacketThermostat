@@ -341,6 +341,17 @@ namespace {
         DoCommandAndWait("HS 3", sp);
     }
 
+    {
+        // clear all schedule entries
+        const int NUM_SCHEDULE_ENTRIES = 16;
+        for (int i = 0; i < NUM_SCHEDULE_ENTRIES; i++)
+        {
+            std::ostringstream oss;
+            oss << "SE " << i;
+            DoCommandAndWait(oss.str(), sp);
+        }
+    }
+
     return 0;
 }
 
