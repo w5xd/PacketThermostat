@@ -802,6 +802,8 @@ namespace
         return false;
     }
 
+    void setTemperatureCx10(int16_t t);
+
     void routeCommand(char* cmd, unsigned char len, uint8_t senderid = -1, bool toMe = true)
     {
 #if USE_SERIAL > 0
@@ -825,13 +827,24 @@ namespace
             Serial.println(F("Command accepted for main"));
 #endif
         }
-        else if (hvac->ProcessCommand(cmd, len, senderid, toMe))
+        else
         {
+            int16_t targetCx10; int16_t actualCx10;
+            bool tempOK = hvac->GetTargetAndActual( targetCx10, actualCx10);
+            auto temp = hvac;
+            if (hvac->ProcessCommand(cmd, len, senderid, toMe))
+            {
 #if USE_SERIAL > 0
             Serial.println(F("Command accepted for HVAC"));
 #endif
-            LCD::printMode(hvac->ModeNameString());
-            InputsToHvacFlag = true;
+                if (temp != hvac)
+                {
+                    LCD::printMode(hvac->ModeNameString());
+                    if (tempOK)
+                        setTemperatureCx10(targetCx10);
+                }
+                InputsToHvacFlag = true;
+            }
         }
     }
 
@@ -850,6 +863,13 @@ namespace
         p = tempToAscii(p, a);
         *p++ = 0;
         LCD::printTemperatures(reportbuf);
+    }
+
+    void setTemperatureCx10(int16_t t)
+    {
+        strcpy(reportbuf, HVAC_SETTINGS);
+        itoa(t, reportbuf + strlen(reportbuf), 10);
+        routeCommand(reportbuf, strlen(reportbuf));
     }
 }
 
@@ -1128,9 +1148,7 @@ void loop()
                     hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
                     mins == static_cast<uint8_t>(se.TimeOfDayMinute))
                 {
-                    strcpy(reportbuf, HVAC_SETTINGS);
-                    itoa((int)se.degreesCx5 << 1, reportbuf + strlen(reportbuf), 10);
-                    routeCommand(reportbuf, strlen(reportbuf));
+                    setTemperatureCx10((int)se.degreesCx5 << 1);
                     LCD::reinit = true;
                 }
             }
