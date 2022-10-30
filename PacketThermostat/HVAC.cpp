@@ -39,9 +39,10 @@ THE SOFTWARE.
 **              HVAC TYPE=n MODE=m      where m must be less than what was set as COUNT=
 **    (3) Fill in the parameters for the given TYPE. 
 **          (a) HVAC NAME=xyz       for all types, including PASSTHROUGH
-**          (b) HVACMAP=0x          for the MapInputToOutput
-**          (c) HVAC_SETTINGS       for all the remaining classes
-**          (d) COOLT=              needed an addition for the COOL setting for the AUTO mode
+**          (b) HVACMAP=0x          for the MapInputToOutput (TYPE=1)
+**          (c) HVAC_SETTINGS       for all the remaining classes (TYpe= 2, 3 and 4)
+**          (d) HUM_SETTINGS              needed an addition for the COOL setting for the AUTO mode
+*           (e) AUTO_SETTINGS       for AUTO
 **    (4)   COMMIT command.         All the above set only the current memory and are lost on PCB power down. COMMIT 
 **    puts the settings to EEPROM to survive power down.
 **
@@ -762,7 +763,7 @@ protected:
     {
         if (HvacCool::ProcessCommand(cmd, len, senderid, toMe))
             return true;
-        static const char AUTO[] = "AUTO_SETTINGS"; // This is the AUTO cool setting only
+        static const char AUTO[] = "AUTO_SETTINGS"; // This is the AUTO heat setting only
         const char* q = strstr(cmd, AUTO);
         if (q)
         {

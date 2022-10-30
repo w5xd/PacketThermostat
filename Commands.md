@@ -4,8 +4,10 @@
 by either its USB serial port, or over its packet
 radio interface. In the following descriptions, the commands are described. The case of the
 letters matters and must be as documented. Items in angle brackets like this: &lt;YYYY&gt;
-must be present but the YYYY is the name of the thing you must enter, and is documented
-with the command. For this example, YYYY might be a four digit year.</p>
+(usually) must be present and the YYYY is the name of the thing you must enter, and is documented
+with the command. For this example, YYYY might be a four digit year. Individual commands
+below note when an item in angle brackets can be omitted, and its always the case
+that if one is missing, then all after it in the command are also missing.</p> 
 
 <p>Many of these commands write results that are saved in the Packet Thermostat's
 EEPROM, and many, but not all, such commands are most easily set up 
@@ -118,5 +120,10 @@ This same command is used for HEAT mode as well, but in HEAT you must set the ac
 lower than the target temperature (or omit it and it will be set 0.6C below the target.)<br/>
 The Seconds-to-stage settings are timed from when stage 1 was started (not from
 when any previous stage was started.)</li>
-<li><code>HVACMAP=0x</code></li>
+<li><code>HUM_SETTINGS</code><br/>
+This command only applies to TYPE=2 (COOL) and TYPE=3 (AUTO)</li>
+<li><code>AUTO_SETTINGS</code><br/>
+This command only applies to TYPE=3 (AUTO)</li>
+<li><code>HVACMAP=0x</code><br/>
+This command only applies to TYPE=1, MapInputToOutput</li>
 </ul> 
