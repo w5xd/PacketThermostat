@@ -2,14 +2,12 @@
 
 <p>Commands are text sent to the PacketThermostat
 by either its USB serial port, or over its packet
-radio interface. In the following descriptions, the commands are described. The case of the
+radio interface. The commands are described below. The case of the
 letters matters and must be as documented. Items in angle brackets like this: &lt;YYYY&gt;
-(usually) must be present and the YYYY is the name of the thing you must enter, and is documented
-with the command. For this example, YYYY might be a four digit year. Individual commands
-below note when an item in angle brackets can be omitted, and its always the case
-that if one is missing, then all after it in the command are also missing.</p> 
+(unless specified otherwise below) must be present and the YYYY is the name of the thing you must enter, and is documented
+with the command. For this example, YYYY might be a four digit year.</p> 
 
-<p>Many of these commands write results that are saved in the Packet Thermostat's
+<p>Many of these command results are saved in the Packet Thermostat's
 EEPROM, and many, but not all, such commands are most easily set up 
 using the PacketThermostatSettings application published here in this same
 repository. PacketThermostatSettings is coded for a particular mapping
@@ -80,9 +78,9 @@ entry is cleared in the Packet Thermostat's EEPROM. The Packet Thermostat enforc
 for its HEAT and COOL modes only, and the same entries are used regardless of mode.
  </li>
 <li><code>HVAC TYPE=&lt;n&gt; COUNT=&lt;m&gt;</code><br/>
-&lt;n&gt; is a digit in the range of 0 through 4. The values of n correspond to the modes:
+&lt;n&gt; is a digit in the range of 0 through 4. The values of n correspond to the types:
 <ol type='1' start='0' >
-<li>PassThrough<br/> This mode has only one COUNT, which cannot be changed</li>
+<li>PassThrough<br/> This type has only one COUNT, which cannot be changed</li>
 <li>MapInputToOutput</li>
 <li>HEAT</li>
 <li>COOL</li>
@@ -103,20 +101,21 @@ for its HEAT and COOL modes only, and the same entries are used regardless of mo
 <li><code>HVAC FAN=ON</code> or <code>HVAC FAN=OFF</code><br/>
 Sets or clears the ventilation fan to continuous ON mode.</li>
 <li><code>HVAC_SETTINGS &lt;target temperature Cx10&gt; &lt;activate temperature Cx10&gt; &lt;sensor id mask&gt; &lt;Stage 1 Mask&gt; &lt;Stage 2 Mask&gt; &lt;Stage 3 Mask&gt; &lt;Fan Mask&gt; &lt;Seconds to Stage 2&gt; &lt;seconds to Stage 3&gt;</code><pre>
-For EXAMPLE, to set the thermostat in COOL mode with typical mapping of PCB to thermostat wires:
-                 206     decimal to  69F (20.6C)  
-                 211     decimal activate at 70F (21.1), 
-                 300     hex use sensors 8 and 9
-                  10     hex The Fan is the G wire, mapped to Z1
-                  04     hex Keep the O output, mapped to X1, always ON
-                  08     hex Stages 1, 2 and 3 are all Y output, mapped to X2
-                   1     decimal Seconds to stages 2 and 3 are unimportant, 1 second each
+For EXAMPLE, to set the thermostat COOL type with typical mapping of PCB to thermostat wires:
+                 206     decimal. target is 69F (20.6C)  
+                 211     decimal. activate at 70F (21.1), 
+                 300     hex. use sensors 8 and 9
+                  10     hex. The Fan is the G wire, mapped to Z1
+                  04     hex. Keep the O output, mapped to X1, always ON
+                  08     hex. Stages 1, 2 and 3 are all Y output, mapped to X2
+                   1     decimal. Seconds to stages 2 and 3 are unimportant, 1 second each
      HVAC_SETTINGS 206 211 300 10 04 08 08 08 1 1
-</pre> Any or all of the values after the &lt;target temperature Cx10&gt; may be omitted. If the 
+</pre> Leading zeros as shown above are allowed but are not required.
+ Any or all of the values after the &lt;target temperature Cx10&gt; may be omitted. If the 
 &lt;activate temperature Cx10&gt; is omitted, it is calculated as 0.6C above/below the target,
-as is appropriate for the given mode. All settings in the command after the activate temperature are
+as is appropriate for the given type. All settings in the command after the activate temperature are
 retained unchanged from their setting at the time of this command. <br/>
-This same command is used for HEAT mode as well, but in HEAT you must set the activate temperature
+This same command is used for HEAT type as well, but in HEAT you must set the activate temperature
 lower than the target temperature (or omit it and it will be set 0.6C below the target.)<br/>
 The Seconds-to-stage settings are timed from when stage 1 was started (not from
 when any previous stage was started.)</li>
