@@ -86,7 +86,18 @@ for its HEAT and COOL modes only, and the same entries are used regardless of mo
 <li>COOL</li>
 <li>AUTO</li>
 </ol>
+ This command updates the number of MODES in the given TYPE, and it <b>destroys</b> the values in
+ the Packet Thermostat EEPROM for all TYPES of higher numbers than &lt;n&gt;.
 </li>
+ <li><code>HVAC TYPE=&lt;n&gt; MODE=&lt;m&gt;</code><br/>
+ &lt;n&gt; is 0 through 4 as the TYPEs above, and &lt;m&gt; must be less than the number
+ specified in COUNT above. This command sets the Packet Thermostat's type and mode of operation. Subsequent
+ commands from below (starting with HVAC) apply to this particular TYPE and MODE</li>
+ <li><code>HVAC COMMIT</code><br/>
+ The HVAC_SETTINGS (below) are not written to EEPROM until this COMMIT command. This means, for example, that
+ if "HVAC_SETTINGS 200" has been used to set the current target temperature to 20C (which is 68F) and for
+ any reason the Packet Thermostat looses power, the HVAC_SETTINGS are restored to what they were at 
+ the previous HVAC COMMIT (not necessarily the previous HVAC_SETTINGS)</li>
 <li><code>HVAC FAN=ON</code> or <code>HVAC FAN=OFF</code><br/>
 Sets or clears the ventilation fan to continuous ON mode.</li>
 <li><code>HVAC_SETTINGS &lt;target temperature Cx10&gt; &lt;activate temperature Cx10&gt; &lt;sensor id mask&gt; &lt;Stage 1 Mask&gt; &lt;Stage 2 Mask&gt; &lt;Stage 3 Mask&gt; &lt;Fan Mask&gt; &lt;Seconds to Stage 2&gt; &lt;seconds to Stage 3&gt;</code><pre>
