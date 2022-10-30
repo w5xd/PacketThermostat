@@ -135,8 +135,8 @@ It starts Stage 1 when a temperature
 notification exceeds the activate setting, and stops when a notification is below the target. The Cool mode 
 also adds a dehumidify setting and a dehumidify output mask. When the humidity is above the setting, the Cool
 mode modifies its output.
-<li> Auto.<br/>The auto mode supports all the Cool mode settings and adds a heat target, a heat activate, and Stage 1, 2 and
-3 timings and output settings.
+<li> Auto.<br/>The auto mode supports all the Cool mode settings and adds a heat target temperature, 
+a heat activate temperature, and Stage 1, 2 and 3 timings and output control wire settings.
 </ol>
 
 All the above settings are settable by radio packets or by a wired serial port, and all can be commanded to

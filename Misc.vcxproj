@@ -52,6 +52,7 @@
   <ItemGroup>
     <None Include="Assembly.md" />
     <None Include="C7089U Resistance specs.pdf" />
+    <None Include="Commands.md" />
     <None Include="README.md" />
     <None Include="thermostat wireless remote circuit.pdf" />
     <None Include="thermostat wireless remote circuit.vsd" />

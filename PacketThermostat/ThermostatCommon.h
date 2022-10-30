@@ -1,7 +1,7 @@
 #pragma once
 #include "PcbSignalDefinitions.h"
 // values for USE_SERIAL. each one uses a bit more program memory
-#define SERIAL_PORT_OFF 0
+#define SERIAL_PORT_OFF 0 // If you use this, you can't set the radio parameters on the serial port.
 #define SERIAL_PORT_PROMPT_ONLY 1
 #define SERIAL_PORT_SETUP 2
 #define SERIAL_PORT_VERBOSE 3
