@@ -162,20 +162,22 @@ If only the target heat temperature is specified, the activate temperature is se
 This command only has effect if TYPE=1, MapInputToOutput<br/>
 The MapInputToOutput has 64 one-byte entries in its map. Each entry corresponds
 to one of the 64 possible combintations of the 6 inputs being either on (represented
-by a one) or off (represented by zero.) The &lt;addr&gt; is hex and
-sets the position in the map of the next argument,  &lt;v1&gt;. Any number of
-arguments may follow, up to the limit of 8 mask entries. To fully specify the map 
+ by a one) or off (represented by zero.) The <code>&lt;addr&gt;</code> is hex and
+ sets the position in the map of the next argument,  <code>&lt;v1&gt;</code>. Up
+ to 8 mask entries may be specified with <code>&lt;v2&gt;</code> and so on
+each applied to the next higher <code>&lt;addr&gt</code>. To fully specify the map 
 requires issuing this command at least 8 times starting with, for example, <code>HVACMAP=0x0 0 1 2 3 4 5 6 7</code>
-and the eighth one which looks like <code>HVACMAP=0x38 38 39 3A 3B 3C 3D 3E 3F </code>. This example
+up to the eighth command which might look like <code>HVACMAP=0x38 38 39 3A 3B 3C 3D 3E 3F </code>. This example
 shows the first and last commands of eight that would set up a map where the Packet Thermostat output wires
 are set to match its input wires (which is exactly what <code>HVAC TYPE=0 MODE=0</code> does.) All
 the values &lt;addr&gt; and &lt;v1&gt; through &lt;v8&gt; are all hexadecimal.
 This command is the only exception to the rule that input and output masks are
-computed using the R signal as bit 0 through X1 as bit 6. The outputs in this
+ computed as bit masks with the R signal as bit zero. The output values (<code>&lt;v1&gt;</code> and so on) in this
 command <i>are</i> in that coding but the &lt;addr&gt; values are <i>not</i> mask values
-for the inputs because the R signal does not contribute to calculating
-the map entry. The 64 valid values for  &lt;addr&gt; start at zero for the
+for the inputs. This is because the R signal is ignored when the Packet Thermostat calculates
+the map entry. Instead, Z2 is bit zero for the purpose of specifying <code>&lt;addr&gt;</code>. 
+ The 64 valid values for  &lt;addr&gt; start at zero for the
 case of the 6 inputs Z2 through X1 off, the value 1 is for only Z2 on, up through
-0x34 for all inputs Z2 through X2 on.
+0x3F for all inputs Z2 through X2 on.
 </li>
 </ul> 
