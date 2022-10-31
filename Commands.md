@@ -30,9 +30,9 @@ to preserve program memory.</li>
 Set wire names to be displayed on the LCD, and
 to be reported using the packet radio. At most two characters
 are allowed for each of the 8 wires. R, Z2, Z1, W, ZX, X2, X1 and X3
-are the names of the physical connectors labeled on the PCB.  They are ordered here
-as least significant bit for R at bit 0, to most significant, X3, which is bit 
-number 7. This bit order applies in all the signal masks in the remaining
+are the names of the physical connectors labeled on the PCB.  They are ordered 
+with the least significant bit for R(bit 0), to most significant, X3 (bit 
+7). This bit order applies in all the signal masks in the remaining
 commands below, and for both the inputs to the Packet Thermostat, 
 and for its outputs. The R wire is not a
 signal input used to compute outputs--its the 24VAC supply. Therefore
@@ -140,10 +140,10 @@ The MapInputToOutput has 64 one-byte entries in its map. Each entry corresponds
 to one of the 64 possible combintations of the 6 inputs being either on (represented
 by a one) or off (represented by zero.) The &lt;addr&gt; is hex and
 sets the position in the map of the next argument,  &lt;v1&gt;. Any number of
-arguments may follow, up to the limit of 8 of them. To fully specify the map 
-requires issuing this command 8 times starting with, for example, <code>HVACMAP=0x0 0 1 2 3 4 5 6 7</code>
-and the eight one which looks like <code>HVACMAP=0x38 38 39 3A 3B 3C 3D 3E 3F </code>. This example
-shows the first and last commands that sets up a map where the Packet Thermostat output wires
+arguments may follow, up to the limit of 8 mask entries. To fully specify the map 
+requires issuing this command at least 8 times starting with, for example, <code>HVACMAP=0x0 0 1 2 3 4 5 6 7</code>
+and the eighth one which looks like <code>HVACMAP=0x38 38 39 3A 3B 3C 3D 3E 3F </code>. This example
+shows the first and last commands of eight that would set up a map where the Packet Thermostat output wires
 are set to match its input wires (which is exactly what <code>HVAC TYPE=0 MODE=0</code> does.) All
 the values &lt;addr&gt; and &lt;v1&gt; through &lt;v8&gt; are all hexadecimal.
 This command is the only exception to the rule that input and output masks are
