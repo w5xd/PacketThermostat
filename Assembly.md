@@ -36,9 +36,7 @@ attention to the fact you <b>must</b> specify the correct processor voltage in t
 Pro Micro such that it is difficult (although not impossible) to recover it. See Sparkfun's 
 <a href='https://learn.sparkfun.com/tutorials/pro-micro--fio-v3-hookup-guide/troubleshooting-and-faq#ts-revive'>page</a>.
 </li></ol></li>
-<li> <a href='https://www.sparkfun.com/products/16281'>SparkFun Real Time clock module, RV-8803</a> <br/>
-The current version of the firmware will run without the RTC, but if you ever want to program scheduling
-into your sketch, you're going to need it.</li>
+<li> <a href='https://www.sparkfun.com/products/16281'>SparkFun Real Time clock module, RV-8803</a> </li>
 <li> <a href='https://www.sparkfun.com/products/13909'>Sparkfun RFM69HCW packet radio module.</a></li>
 <li> <a href='https://www.sparkfun.com/products/14417'>Sparkfun Qwiic SMD connector</a></li>
 <li> <a href='https://www.sparkfun.com/products/16396'>Sparkfun 16x2 SerLCD -RGB - Qwiic</a></li>

@@ -26,11 +26,17 @@ Prints out on the USB serial port what the radio parameters
 are set to. Except this command prints nothing if 
 the C++ preprocessor setting has eliminated the printout
 to preserve program memory.</li>
-<li><code>HV &lt;R&gt; &lt;Z2&gt; &lt;Z1&gt; &lt;W&gt; &lt;ZX&gt; &lt;X2&gt; &lt;X1&gt;</code><br/>
+<li><code>HV &lt;R&gt; &lt;Z2&gt; &lt;Z1&gt; &lt;W&gt; &lt;ZX&gt; &lt;X2&gt; &lt;X1&gt; &lt;X3&gt;</code><br/>
 Set wire names to be displayed on the LCD, and
 to be reported using the packet radio. At most two characters
-are allowed per wire name. R, Z2, Z1, W, ZX, X2 and X1 
-are the names of the physical connectors labeled on the PCB.
+are allowed for each of the 8 wires. R, Z2, Z1, W, ZX, X2, X1 and X3
+are the names of the physical connectors labeled on the PCB.  They are ordered here
+as least significant bit for R at bit 0, to most significant, X3, which is bit 
+number 7. This bit order applies in all the signal masks in the remaining
+commands below, and for both the inputs to the Packet Thermostat, 
+and for its outputs. The R wire is not a
+signal input used to compute outputs--its the 24VAC supply. Therefore
+bit 0 cannot be used in any masks for either input or output.
 </li>
 <li><code>COMPRESSOR=0x&lt;SignalMask&gt; &lt;seconds&gt;</code><br/>
 Sets the thermostat's compressor timer lockout bits and timer length.
@@ -55,7 +61,7 @@ the heat safety detection.</li>
 <li><code>HS T &lt;SECONDS&gt;</code><br/>
 &lt;SECONDS&gt; is the heat safety timeout. When
 the packet thermostat outlet temperature exceeds
-the threshhold, the furnace outputs are held zero
+the threshhold, the furnace heating outputs are held zero
 for this long.</li>
 <li><code>HS &lt;1-3&gt; &lt;DontCare&gt; &lt;MustMatch&gt; &lt;ToClear&gt;</code><br/>
 &lt;1-3&gt; is one of the digits 1 through 3. Up to three different heat modes can be
@@ -80,26 +86,31 @@ for its HEAT and COOL modes only, and the same entries are used regardless of mo
 <li><code>HVAC TYPE=&lt;n&gt; COUNT=&lt;m&gt;</code><br/>
 &lt;n&gt; is a digit in the range of 0 through 4. The values of n correspond to the types:
 <ol type='1' start='0' >
-<li>PassThrough<br/> This type has only one COUNT, which cannot be changed</li>
+<li>PassThrough<br/> This type has exactly one COUNT, and cannot be changed</li>
 <li>MapInputToOutput</li>
 <li>HEAT</li>
 <li>COOL</li>
 <li>AUTO</li>
 </ol>
- This command updates the number of MODES in the given TYPE, and it <b>destroys</b> the values in
- the Packet Thermostat EEPROM for all TYPES of higher numbers than &lt;n&gt;.
+ This command updates the number of MODES in the given TYPE and does so in EEPROM. It <b>destroys</b> the values in
+ the Packet Thermostat EEPROM for all TYPES of higher numbers than &lt;n&gt;. All types except PassThrough
+may have COUNT=0, which prevents the thermostat from using that type at all. PassThrough
+always has only one MODE, and the only setting it has is its NAME.
 </li>
  <li><code>HVAC TYPE=&lt;n&gt; MODE=&lt;m&gt;</code><br/>
  &lt;n&gt; is 0 through 4 as the TYPEs above, and &lt;m&gt; must be less than the number
  specified in COUNT above. This command sets the Packet Thermostat's type and mode of operation. Subsequent
- commands from below (starting with HVAC) apply to this particular TYPE and MODE</li>
+ commands from below (starting with HVAC) apply to this particular TYPE and MODE. This
+command sets the Packet Thermostat's current operating state, and initializes it from EEPROM.</li>
  <li><code>HVAC COMMIT</code><br/>
- The HVAC_SETTINGS (below) are not written to EEPROM until this COMMIT command. This means, for example, that
+ The HVAC_SETTINGS and HVAC commands (below) are not written to EEPROM until this COMMIT command. This means, for example, that
  if "HVAC_SETTINGS 200" has been used to set the current target temperature to 20C (which is 68F) and for
  any reason the Packet Thermostat looses power, the HVAC_SETTINGS are restored to what they were at 
  the previous HVAC COMMIT (not necessarily the previous HVAC_SETTINGS)</li>
 <li><code>HVAC FAN=ON</code> or <code>HVAC FAN=OFF</code><br/>
 Sets or clears the ventilation fan to continuous ON mode.</li>
+<li><code>HVAC NAME=&lt;name&gt;</code>
+<br/>The name displayed for the current TYPE and MODE in the LCD. Five characters maximum.</li>
 <li><code>HVAC_SETTINGS &lt;target temperature Cx10&gt; &lt;activate temperature Cx10&gt; &lt;sensor id mask&gt; &lt;Stage 1 Mask&gt; &lt;Stage 2 Mask&gt; &lt;Stage 3 Mask&gt; &lt;Fan Mask&gt; &lt;Seconds to Stage 2&gt; &lt;seconds to Stage 3&gt;</code><pre>
 For EXAMPLE, to set the thermostat COOL type with typical mapping of PCB to thermostat wires:
                  206     decimal. target is 69F (20.6C)  
@@ -123,6 +134,24 @@ when any previous stage was started.)</li>
 This command only applies to TYPE=2 (COOL) and TYPE=3 (AUTO)</li>
 <li><code>AUTO_SETTINGS</code><br/>
 This command only applies to TYPE=3 (AUTO)</li>
-<li><code>HVACMAP=0x</code><br/>
-This command only applies to TYPE=1, MapInputToOutput</li>
+<li><code>HVACMAP=0x&lt;addr&gt; &lt;v1&gt; &lt;v2&gt; ... &lt;v8&gt;</code><br/>
+This command only applies to TYPE=1, MapInputToOutput<br/>
+The MapInputToOutput has 64 one-byte entries in its map. Each entry corresponds
+to one of the 64 possible combintations of the 6 inputs being either on (represented
+by a one) or off (represented by zero.) The &lt;addr&gt; is hex and
+sets the position in the map of the next argument,  &lt;v1&gt;. Any number of
+arguments may follow, up to the limit of 8 of them. To fully specify the map 
+requires issuing this command 8 times starting with, for example, <code>HVACMAP=0x0 0 1 2 3 4 5 6 7</code>
+and the eight one which looks like <code>HVACMAP=0x38 38 39 3A 3B 3C 3D 3E 3F </code>. This example
+shows the first and last commands that sets up a map where the Packet Thermostat output wires
+are set to match its input wires (which is exactly what <code>HVAC TYPE=0 MODE=0</code> does.) All
+the values &lt;addr&gt; and &lt;v1&gt; through &lt;v8&gt; are all hexadecimal.
+This command is the only exception to the rule that input and output masks are
+computed using the R signal as bit 0 through X1 as bit 6. The outputs in this
+command <i>are</i> in that coding but the &lt;addr&gt; values are <i>not</i> mask values
+for the inputs because the R signal does not contribute to calculating
+the map entry. The 64 valid values for  &lt;addr&gt; start at zero for the
+case of the 6 inputs Z2 through X1 off, the value 1 is for only Z2 on, up through
+0x34 for all inputs Z2 through X2 on.
+</li>
 </ul> 

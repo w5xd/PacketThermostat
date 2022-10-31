@@ -742,11 +742,13 @@ namespace
             setCompressorHoldSeconds(seconds);
             return true;
         } 
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
         else if (0 == strcmp(cmd, "RH"))
         {
             radioHvacReport(InputRegister, OutputRegister);
             return true;
         }
+#endif
         else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'S')
         {
             q = cmd + 2;
