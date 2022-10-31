@@ -117,31 +117,34 @@ frequency and network ID.
 Such a Packet Thermometer temperature update (along with its relative humdity update if it sports an HIH6130) are
 available to the Packet Thermostat sketch.
 
-The provided sketch software supports being set into any of the following operating modes:
+The provided sketch software supports being set into any of the following operating types:
 <ol>
-<li> Pass through.<br/>In this mode, it copies each of its 6 inputs to its corresponding output. W to W, X1 to X1, 
+<li> Pass through.<br/>In this type, it copies each of its 6 inputs to its corresponding output. W to W, X1 to X1, 
 X2 to X2, ZX to ZX, Z1 to Z1, and Z2 to Z2. Because it has no corresponding input, X3 will never be asserted in Pass through mode.
 <li> Map input to output. <br/>In this mode, the thermostat takes its 6 inputs (which correspond to 2**6 = 64 combinations)
 and updates its 7 outputs to the corresponding value in a 64 byte table. The table is configured by the PacketThermostatSettings
 application and loaded into the Arduino EEPROM.
 <li> Heat. <br/>The thermostat ignores its thermostat inputs. It is instead driven by notifications from one or more 
 Packet Thermometers.
-This mode has several radio-controled settings. One for its target temperature (the turn OFF setting), another for its active temperature (its turn ON setting)
+This type has several radio-controled settings. One for its target temperature (the turn OFF setting), another for its active temperature (its turn ON setting)
 along with the required output wire signals for Stage 1, Stage 2, and Stage 3 heating. This thermostat commands Stage 1
 on first encountering the activate temperature, then moves to Stage 2 and Stage 3 if the continuous ON time exceeds
 the corresponding settings. 
-<li> Cool. <br/>The behavior in this mode takes the same settings as heat, but takes the opposite conditions on the received temperature.
+<li> Cool. <br/>The behavior in this type takes the same settings as heat, but takes the opposite conditions on the received temperature.
 It starts Stage 1 when a temperature
 notification exceeds the activate setting, and stops when a notification is below the target. The Cool mode 
 also adds a dehumidify setting and a dehumidify output mask. When the humidity is above the setting, the Cool
 mode modifies its output.
-<li> Auto.<br/>The auto mode supports all the Cool mode settings and adds a heat target temperature, 
+<li> Auto.<br/>The auto type supports all the Cool type settings and adds a heat target temperature, 
 a heat activate temperature, and Stage 1, 2 and 3 timings and output control wire settings.
 </ol>
 
 All the above settings are settable by radio packets or by a wired serial port, and all can be commanded to
-be stored in the Arduino's EEPROM. Each mode also has a five character name, which it will display on the LCD when
+be stored in the Arduino's EEPROM. The commands are documented in <a href='./Commands.md'>Commands.md</a>. Each type also has a five character name, which it will display on the LCD when
 commanded into that mode.
+
+The sketch supports a scheduling feature to adjust the Packet Thermostat's target temperature when its real time clock reaches a given
+hour and minute and day-of-week. It supports a maximum of 16 time points, each with its own target temperature.
 
 The sketch supports a safety shutdown feature that can be configured via its radio or serial port. It is independent of the mode settings listed above.
 The feature has a command to set
