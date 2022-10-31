@@ -200,7 +200,7 @@ namespace
         uint8_t dontCareMask;
         uint8_t mustMatchMask;
         uint8_t toClear;
-        HeatSafetyMask_t() : dontCareMask(0), mustMatchMask(0), toClear(0) {}
+        HeatSafetyMask_t()  { memset(this, 0, sizeof(*this));  } // memset generates smaller code than explicit initializers
     };
     static_assert(sizeof(HeatSafetyMask_t) == 3, "no padding");
     const int NUM_HEAT_SAFETY_ENTRIES = 3;
@@ -210,8 +210,10 @@ namespace
         unsigned TimeOfDayHour : 5; // 0 to 23
         unsigned TimeOfDayMinute: 6; // 0 to 60
         unsigned DaysOfWeek: 7; // bit mask, 
-        ScheduleEntry_t() : degreesCx5(0), TimeOfDayHour(0), TimeOfDayMinute(0), DaysOfWeek(0){}
+        unsigned AutoMode: 1;
+        ScheduleEntry_t() { memset(this, 0, sizeof(*this)); }
         };
+    static_assert(sizeof(ScheduleEntry_t) == 4, "EEPROM size changed!");
     const int NUM_SCHEDULE_TEMPERATURE_ENTRIES = 16;
 #endif
     enum class EepromAddresses {PACKET_THERMOSTAT_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
@@ -802,6 +804,7 @@ namespace
             se.TimeOfDayHour = aDecimalToInt(q);
             se.TimeOfDayMinute = aDecimalToInt(q);
             se.DaysOfWeek = aHexToInt(q);
+            se.AutoMode = *q == '1';
             setScheduleEntry(which, se);
             return true;
         }
@@ -821,7 +824,7 @@ namespace
         return false;
     }
 
-    void setTemperatureCx10(int16_t t);
+    void setTemperatureCx10(int16_t t, bool autoMode = false);
 
     void routeCommand(char* cmd, unsigned char len, uint8_t senderid = -1, bool toMe = true)
     {
@@ -882,10 +885,14 @@ namespace
         LCD::printTemperatures(reportbuf);
     }
 
-    void setTemperatureCx10(int16_t t)
+    void setTemperatureCx10(int16_t t, bool autoMode)
     {
         static char buf[20];
         strcpy(buf, HVAC_SETTINGS);
+#if        HVAC_AUTO_CLASS
+        if (autoMode)
+            strcpy(buf, AUTO_SETTINGS);
+#endif
         itoa(t, buf + strlen(buf), 10);
         routeCommand(buf, strlen(buf));
     }
@@ -1165,7 +1172,7 @@ void loop()
                     hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
                     mins == static_cast<uint8_t>(se.TimeOfDayMinute))
                 {
-                    setTemperatureCx10((int)se.degreesCx5 << 1);
+                    setTemperatureCx10((int)se.degreesCx5 << 1, se.AutoMode);
                     LCD::reinit = true;
                 }
             }

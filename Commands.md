@@ -73,15 +73,17 @@ mask that, once DontCare signals are zeroed, matches the furnace in the heat mod
 to be detected.
 ToClear is a SignalMask of bits to clear to force the furnace out of the
 detected heat mode. </li>
-<li><code>SE &lt;ScheduleEntry&gt; &lt;Celsiusx10&gt; &lt;HOUR&gt; &lt;MINUTE&gt; &lt;DAY-OF-WEEK&gt;</code><br/>
+<li><code>SE &lt;ScheduleEntry&gt; &lt;Celsiusx10&gt; &lt;HOUR&gt; &lt;MINUTE&gt; &lt;DAY-OF-WEEK&gt; &lt;AutoOnly&gt;</code><br/>
 &lt;ScheduleEntry&gt; is a decimal number in the range of 0 through 15 specifying one of the 16
 schedule entries. &lt;Celsiusx10&gt;, &lt;HOUR&gt;, &lt;MINUTE&gt; are decimal numbers.
 The temperature is in degrees C times 10 (e.g. 200 means 20.0C). HOUR is the range 0 through 23,
 and MINUTE is in the range 0 through 59. DAY-OF-WEEK is a seven bit hexadecimal number in the range of 0 through
 7F where each bit specifies a day of the week. Bit 0 is SUNDAY, bit 1 is MONDAY, and so on.
 If any or all of the values after the ScheduleEntry number are omitted, the corresponding schedule
-entry is cleared in the Packet Thermostat's EEPROM. The Packet Thermostat enforces the schedule
-for its HEAT and COOL modes only, and the same entries are used regardless of mode.
+entry is cleared in the Packet Thermostat's EEPROM. Unless <code>&lt;AutoOnly&gt;</code> is present and
+is the digit <code>1</code>, the Packet Thermostat enforces the schedule
+for its HEAT and COOL types using the same temperature regardless of type. If <code>&lt;AutoOnly&gt;</code> is 
+ <code>1</code>, the Packet Thermostat sets the heat target temperature if it is in AUTO type.
  </li>
 <li><code>HVAC TYPE=&lt;n&gt; COUNT=&lt;m&gt;</code><br/>
 &lt;n&gt; is a digit in the range of 0 through 4. The values of n correspond to the types:
@@ -130,12 +132,21 @@ This same command is used for HEAT type as well, but in HEAT you must set the ac
 lower than the target temperature (or omit it and it will be set 0.6C below the target.)<br/>
 The Seconds-to-stage settings are timed from when stage 1 was started (not from
 when any previous stage was started.)</li>
-<li><code>HUM_SETTINGS</code><br/>
-This command only applies to TYPE=2 (COOL) and TYPE=3 (AUTO)</li>
-<li><code>AUTO_SETTINGS</code><br/>
-This command only applies to TYPE=3 (AUTO)</li>
+<li><code>HUM_SETTINGS &lt;HumdityX10&gt; &lt;MaskON&gt; &lt;MaskOFF&gt;</code><br/>
+This command has effect if TYPE=2 (COOL) or TYPE=3 (AUTO)<br/>
+&lt;HumdityX10&gt; is percent humidty times 10 in decimal (e.g. 400 is 40% humidity.)
+The two masks are hexadecimal. <code>&lt;MaskON&gt;</code> specifies the output bits to
+turn on when the humidity exceeds the setting and <code>&lt;MaskOFF&gt;</code> specifies
+the bits to turn off, also on high humidity. When the humidity input
+is below the setting, the appropriate <code>Stage n Mask</code> specifies
+the output.</li>
+<li><code>AUTO_SETTINGS &lt;target heat Cx10&gt; &lt;activate heat Cx10&gt; &lt;Stage 1 Mask&gt; &lt;Stage 2 Mask&gt; &lt;Stage 3 Mask&gt;</code><br/>
+This command only has effect if TYPE=3 (AUTO)<br/>
+AUTO mode uses the <code>HVAC_SETTINGS</code> for cooling, and for heating, it uses these settings. The seconds-in-stage for
+heating in AUTO are the same for heating as for cooling as specified in  <code>HVAC_SETTINGS</code>. 
+If only the target heat temperature is specified, the activate temperature is set to 0.6C lower.</li>
 <li><code>HVACMAP=0x&lt;addr&gt; &lt;v1&gt; &lt;v2&gt; ... &lt;v8&gt;</code><br/>
-This command only applies to TYPE=1, MapInputToOutput<br/>
+This command only has effect if TYPE=1, MapInputToOutput<br/>
 The MapInputToOutput has 64 one-byte entries in its map. Each entry corresponds
 to one of the 64 possible combintations of the 6 inputs being either on (represented
 by a one) or off (represented by zero.) The &lt;addr&gt; is hex and

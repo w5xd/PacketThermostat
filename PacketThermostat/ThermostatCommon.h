@@ -8,7 +8,8 @@
 #define SERIAL_PORT_DEBUG 4
 #define SERIAL_PORT_SETME_DEBUG_TO_SEE 5
 
-#define USE_SERIAL SERIAL_PORT_SETUP        
+#define USE_SERIAL SERIAL_PORT_PROMPT_ONLY   
+#define HVAC_AUTO_CLASS 1 // not enough program memory for all features? Turn this off.
 
 namespace Furnace {
     void UpdateOutputs(uint8_t mask);
@@ -38,3 +39,4 @@ protected:
 extern ThermostatCommon *hvac;
 extern const int HVAC_EEPROM_START;
 extern const char HVAC_SETTINGS[];
+extern const char AUTO_SETTINGS[];

@@ -26,7 +26,6 @@ THE SOFTWARE.
 #include <EEPROM.h>
 #include "ThermostatCommon.h"
 
-#define HVAC_AUTO_CLASS 1 // not enough program memory for all features
 
 /* The various HVAC implementations are a mix of classes with subclasses, each itself being table-driven.
 ** There is a trivial class, PassThrough, and four (interesting) classes.
@@ -109,6 +108,9 @@ namespace
 }
 
 const char HVAC_SETTINGS[] = "HVAC_SETTINGS ";
+#if HVAC_AUTO_CLASS
+const char AUTO_SETTINGS[] = "AUTO_SETTINGS"; // This is the AUTO heat setting only
+#endif
 
 /* These classes have a lot of member variables that are static.
 ** This is an optimization to keep memory usage down by taking
@@ -763,11 +765,10 @@ protected:
     {
         if (HvacCool::ProcessCommand(cmd, len, senderid, toMe))
             return true;
-        static const char AUTO[] = "AUTO_SETTINGS"; // This is the AUTO heat setting only
-        const char* q = strstr(cmd, AUTO);
+        const char* q = strstr(cmd, AUTO_SETTINGS);
         if (q)
         {
-            q += sizeof(AUTO) - 1;
+            q += sizeof(AUTO_SETTINGS) - 1;
             if (!*(q++)) return true;
             settingsFromEeprom.TemperatureTargetHeatDegreesCx10 = aDecimalToInt(q);
             settingsFromEeprom.TemperatureActivateHeatDegreesCx10 = 
