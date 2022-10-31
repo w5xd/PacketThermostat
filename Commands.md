@@ -170,14 +170,14 @@ requires issuing this command at least 8 times starting with, for example, <code
 up to the eighth command which might look like <code>HVACMAP=0x38 38 39 3A 3B 3C 3D 3E 3F </code>. This example
 shows the first and last commands of eight that would set up a map where the Packet Thermostat output wires
 are set to match its input wires (which is exactly what <code>HVAC TYPE=0 MODE=0</code> does.) All
-the values &lt;addr&gt; and &lt;v1&gt; through &lt;v8&gt; are all hexadecimal.
+the values &lt;addr&gt; and &lt;v1&gt; through &lt;v8&gt; are hexadecimal.
 This command is the only exception to the rule that input and output masks are
  computed as bit masks with the R signal as bit zero. The output values (<code>&lt;v1&gt;</code> and so on) in this
-command <i>are</i> in that coding but the &lt;addr&gt; values are <i>not</i> mask values
-for the inputs. This is because the R signal is ignored when the Packet Thermostat calculates
-the map entry. Instead, Z2 is bit zero for the purpose of specifying <code>&lt;addr&gt;</code>. 
- The 64 valid values for  &lt;addr&gt; start at zero for the
-case of the 6 inputs Z2 through X1 off, the value 1 is for only Z2 on, up through
+command <i>are</i> in that coding but the &lt;addr&gt; values are <i>not</i>. This is because the R signal is ignored when 
+ the Packet Thermostat calculates
+the map entry. Instead, for the purpose of specifying <code>&lt;addr&gt;</code>, Z2 is bit zero. 
+Therefore, the 64 valid values for  &lt;addr&gt; start at zero for the
+case of the 6 inputs Z2 through X1 off, the value 0x1 is for only Z2 on, up through
 0x3F for all inputs Z2 through X2 on.
 </li>
 </ul> 
