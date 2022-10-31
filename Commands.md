@@ -4,20 +4,22 @@
 by either its USB serial port, or over its packet
 radio interface. The commands are described below. The case of the
 letters matters and must be as documented. Items in angle brackets like this: &lt;YYYY&gt;
-(unless specified otherwise below) must be present and the YYYY is the name of the thing you must enter, and is documented
+must be present (unless specified otherwise below) and the YYYY is the name of the thing you must enter as is documented
 with the command. For this example, YYYY might be a four digit year.</p> 
 
 <p>Many of these command results are saved in the Packet Thermostat's
 EEPROM, and many, but not all, such commands are most easily set up 
-using the PacketThermostatSettings application published here in this same
+using the PacketThermostatSettings application published here in this 
 repository. PacketThermostatSettings is coded for a particular mapping
 of thermostat control wires to the PacketThermostat's input and output pins. 
+ You are invited to modify it if your thermostat wiring assignment
+ differs.
 </p>
 
 <ul>
 <li><code>T=&lt;YYYY&gt; &lt;MM&gt; &lt;DD&gt; &lt;HH&gt; &lt;MM&gt; &lt;SS&gt; &lt;DOW&gt;</code><br/>
 Sets the real time clock to the year, month, day, hours,
-minutes, and seconds. Year is four digits, month is 1 through 12,
+minutes, seconds and day-of-week. Year is four digits, month is 1 through 12,
 day is 1 through 31, hours is 0 through 23, minutes and seconds are
 0 through 59. DOW is day-of-week and is from 0 through 6 (for
 Sunday through Saturday).</li>
@@ -29,27 +31,33 @@ to preserve program memory.</li>
 <li><code>HV &lt;R&gt; &lt;Z2&gt; &lt;Z1&gt; &lt;W&gt; &lt;ZX&gt; &lt;X2&gt; &lt;X1&gt; &lt;X3&gt;</code><br/>
 Set wire names to be displayed on the LCD, and
 to be reported using the packet radio. At most two characters
-are allowed for each of the 8 wires. R, Z2, Z1, W, ZX, X2, X1 and X3
+are allowed for each of the 8 PCB signals. R, Z2, Z1, W, ZX, X2, X1 and X3
 are the names of the physical connectors labeled on the PCB.  They are ordered 
-with the least significant bit for R(bit 0), to most significant, X3 (bit 
+ as above
+with the least significant bit for R(bit 0), to the most significant, X3 (bit 
 7). This bit order applies in all the signal masks in the remaining
 commands below, and for both the inputs to the Packet Thermostat, 
-and for its outputs. The R wire is not a
-signal input used to compute outputs--its the 24VAC supply. Therefore
-bit 0 cannot be used in any masks for either input or output.
+and for its outputs. (The order X2, X1, and X3 is not a typo. That
+ is their bit order.) The R wire is not a
+signal input used to compute outputs--its the 24VAC supply which means
+bit 0 cannot be used in any masks for either input or output. X3 is an
+ output, not an input, and R is not an output. The number of input
+ signals that can contribute to the output is 6, <code>&lt;Z2&gt;</code>
+ through <code>&lt;X1&gt;</code> above, and the number of outputs
+ that Packet Thermostat can control is 7: <code>&lt;Z2&gt;</code>
+ through <code>&lt;X3&gt;</code> above.
 </li>
 <li><code>COMPRESSOR=0x&lt;SignalMask&gt; &lt;seconds&gt;</code><br/>
 Sets the thermostat's compressor timer lockout bits and timer length.
 <code>SignalMask</code> is hexadecimal digits (0 through 9, and A through F). The bit
-order is the same as the <code>HV</code> command above, which is
-in order of least significant bit to most significant. &lt;seconds&gt; is
+order as specified in the <code>HV</code> command above. &lt;seconds&gt; is
 the length of time the compressor bits are forced to remain
-OFF after any is changed from ON to OFF.</li>
+OFF after any of the masked output signals is changed from ON to OFF.</li>
 <li><code>DU=F</code> or <code>DU=C</code><br/>
 The first sets the LCD temperature units as Farenheit. Otherwise
 its Celsius.</li>
 <li><code>RH</code><br/>
-Initiates an update to the LCD, the radio, and
+Forces an update to the LCD, the radio, and
 the USB Serial port of the current control wire
 inputs and outputs to/from the packet thermostat.</li>
 <li><code>HS C &lt;CelsiusX10&gt;</code><br/>
@@ -60,13 +68,14 @@ to 30.0 degrees C. Set to zero to disable
 the heat safety detection.</li>
 <li><code>HS T &lt;SECONDS&gt;</code><br/>
 &lt;SECONDS&gt; is the heat safety timeout. When
-the packet thermostat outlet temperature exceeds
+the packet thermostat inlet  temperature sensor (wired to Ti on the PCB) exceeds
 the threshhold, the furnace heating outputs are held zero
 for this long.</li>
 <li><code>HS &lt;1-3&gt; &lt;DontCare&gt; &lt;MustMatch&gt; &lt;ToClear&gt;</code><br/>
-&lt;1-3&gt; is one of the digits 1 through 3. Up to three different heat modes can be
+&lt;1-3&gt; is a digit 1 through 3. Up to three different heat modes can be
 detected. (For example: commanding the heat pump on is a different signal configuration
-than commanding auxilliary heat.)
+than commanding auxilliary heat, and detecting a heat over temperature for
+ the different signal configurations each requires a different <code>HS</code> entry.)
 DontCare is a SignalMask (in hex) of the furnace output wires that are not used to detect
 the furnace is in a heat mode. MustMatch is the value of the furnace output wire
 mask that, once DontCare signals are zeroed, matches the furnace in the heat mode
@@ -79,11 +88,13 @@ schedule entries. &lt;Celsiusx10&gt;, &lt;HOUR&gt;, &lt;MINUTE&gt; are decimal n
 The temperature is in degrees C times 10 (e.g. 200 means 20.0C). HOUR is the range 0 through 23,
 and MINUTE is in the range 0 through 59. DAY-OF-WEEK is a seven bit hexadecimal number in the range of 0 through
 7F where each bit specifies a day of the week. Bit 0 is SUNDAY, bit 1 is MONDAY, and so on.
-If any or all of the values after the ScheduleEntry number are omitted, the corresponding schedule
-entry is cleared in the Packet Thermostat's EEPROM. Unless <code>&lt;AutoOnly&gt;</code> is present and
+ Unless <code>&lt;AutoOnly&gt;</code> is present and
 is the digit <code>1</code>, the Packet Thermostat enforces the schedule
-for its HEAT and COOL types using the same temperature regardless of type. If <code>&lt;AutoOnly&gt;</code> is 
+ if is in HEAT or COOL type, setting the target temperature specified by the <code>&lt;Celsiusx10&gt;</code>. 
+ If <code>&lt;AutoOnly&gt;</code> is 
  <code>1</code>, the Packet Thermostat sets the heat target temperature if it is in AUTO type.
+ If any or all of the values after the ScheduleEntry number are omitted, the corresponding schedule
+entry is cleared in the Packet Thermostat's EEPROM.
  </li>
 <li><code>HVAC TYPE=&lt;n&gt; COUNT=&lt;m&gt;</code><br/>
 &lt;n&gt; is a digit in the range of 0 through 4. The values of n correspond to the types:
@@ -96,20 +107,21 @@ for its HEAT and COOL types using the same temperature regardless of type. If <c
 </ol>
  This command updates the number of MODES in the given TYPE and does so in EEPROM. It <b>destroys</b> the values in
  the Packet Thermostat EEPROM for all TYPES of higher numbers than &lt;n&gt;. All types except PassThrough
-may have COUNT=0, which prevents the thermostat from using that type at all. PassThrough
+may have COUNT=0, which prevents the thermostat from entering that type, even if command to. PassThrough
 always has only one MODE, and the only setting it has is its NAME.
 </li>
  <li><code>HVAC TYPE=&lt;n&gt; MODE=&lt;m&gt;</code><br/>
  &lt;n&gt; is 0 through 4 as the TYPEs above, and &lt;m&gt; must be less than the number
  specified in COUNT above. This command sets the Packet Thermostat's type and mode of operation. Subsequent
- commands from below (starting with HVAC) apply to this particular TYPE and MODE. This
+ commands documented below (starting with HVAC) will apply to this particular TYPE and MODE. This
 command sets the Packet Thermostat's current operating state, and initializes it from EEPROM.</li>
  <li><code>HVAC COMMIT</code><br/>
  The HVAC_SETTINGS and HVAC commands (below) are not written to EEPROM until this COMMIT command. This means, for example, that
  if "HVAC_SETTINGS 200" has been used to set the current target temperature to 20C (which is 68F) and for
- any reason the Packet Thermostat looses power, the HVAC_SETTINGS are restored to what they were at 
+ any reason the Packet Thermostat loses power, the HVAC_SETTINGS are restored to what they were at 
  the previous HVAC COMMIT (not necessarily the previous HVAC_SETTINGS)</li>
 <li><code>HVAC FAN=ON</code> or <code>HVAC FAN=OFF</code><br/>
+ This command only has effect when the Packet Thermostat is in HEAT, COOL or AUTO type.<br/>
 Sets or clears the ventilation fan to continuous ON mode.</li>
 <li><code>HVAC NAME=&lt;name&gt;</code>
 <br/>The name displayed for the current TYPE and MODE in the LCD. Five characters maximum.</li>
@@ -131,9 +143,10 @@ retained unchanged from their setting at the time of this command. <br/>
 This same command is used for HEAT type as well, but in HEAT you must set the activate temperature
 lower than the target temperature (or omit it and it will be set 0.6C below the target.)<br/>
 The Seconds-to-stage settings are timed from when stage 1 was started (not from
-when any previous stage was started.)</li>
+when any previous stage was started.)<br/>
+ This command only has effect when the Packet Thermostat is in HEAT, COOL or AUTO type.</li>
 <li><code>HUM_SETTINGS &lt;HumdityX10&gt; &lt;MaskON&gt; &lt;MaskOFF&gt;</code><br/>
-This command has effect if TYPE=2 (COOL) or TYPE=3 (AUTO)<br/>
+This command only has effect if TYPE=2 (COOL) or TYPE=3 (AUTO)<br/>
 &lt;HumdityX10&gt; is percent humidty times 10 in decimal (e.g. 400 is 40% humidity.)
 The two masks are hexadecimal. <code>&lt;MaskON&gt;</code> specifies the output bits to
 turn on when the humidity exceeds the setting and <code>&lt;MaskOFF&gt;</code> specifies
