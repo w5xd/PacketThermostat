@@ -121,6 +121,7 @@ command sets the Packet Thermostat's current operating state, and initializes it
  any reason the Packet Thermostat loses power, the HVAC_SETTINGS are restored to what they were at 
  the previous HVAC COMMIT (not necessarily the previous HVAC_SETTINGS)</li>
 <li><code>HVAC FAN=ON</code> or <code>HVAC FAN=OFF</code><br/>
+ This command only has effect when the Packet Thermostat is in HEAT, COOL or AUTO type.<br/>
 Sets or clears the ventilation fan to continuous ON mode.</li>
 <li><code>HVAC NAME=&lt;name&gt;</code>
 <br/>The name displayed for the current TYPE and MODE in the LCD. Five characters maximum.</li>
@@ -142,7 +143,8 @@ retained unchanged from their setting at the time of this command. <br/>
 This same command is used for HEAT type as well, but in HEAT you must set the activate temperature
 lower than the target temperature (or omit it and it will be set 0.6C below the target.)<br/>
 The Seconds-to-stage settings are timed from when stage 1 was started (not from
-when any previous stage was started.)</li>
+when any previous stage was started.)<br/>
+ This command only has effect when the Packet Thermostat is in HEAT, COOL or AUTO type.</li>
 <li><code>HUM_SETTINGS &lt;HumdityX10&gt; &lt;MaskON&gt; &lt;MaskOFF&gt;</code><br/>
 This command only has effect if TYPE=2 (COOL) or TYPE=3 (AUTO)<br/>
 &lt;HumdityX10&gt; is percent humidty times 10 in decimal (e.g. 400 is 40% humidity.)
