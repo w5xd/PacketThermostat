@@ -314,6 +314,44 @@ namespace {
 
     DoCommandAndWait("HVAC COMMIT", sp);
 
+    // Heat mode safety check. Force furnace off if intake temperature exceeds setting
+    DoCommandAndWait("HS T 300", sp); // heat safety timeout 5 minutes. once triggered, off this long
+    DoCommandAndWait("HS C 322", sp); // heat safety temperature 32.2C (about 90F)
+
+    {
+        std::ostringstream safety1;
+        // if W is on, force it off
+        uint8_t dontCare = ~MASK_W;
+        uint8_t mustMatchMask  = MASK_W;
+        uint8_t toClear = MASK_Y | MASK_Y2 | MASK_W;
+
+        safety1 << "HS 1 " << std::hex << static_cast<int>(dontCare) << " " << 
+                              std::hex << static_cast<int>(mustMatchMask) << " " <<
+                              std::hex << static_cast<int>(toClear);
+        DoCommandAndWait(safety1.str(), sp);
+
+        dontCare = ~(MASK_Y | MASK_O);
+        mustMatchMask = MASK_Y ; // compressor ON, and reversing valve is HEAT
+        std::ostringstream safety2;
+        safety2 << "HS 2 " << std::hex << static_cast<int>(dontCare) << " " <<
+            std::hex << static_cast<int>(mustMatchMask) << " " <<
+            std::hex << static_cast<int>(toClear);
+        DoCommandAndWait(safety2.str(), sp);
+
+        DoCommandAndWait("HS 3", sp);
+    }
+
+    {
+        // clear all schedule entries
+        const int NUM_SCHEDULE_ENTRIES = 16;
+        for (int i = 0; i < NUM_SCHEDULE_ENTRIES; i++)
+        {
+            std::ostringstream oss;
+            oss << "SE " << i;
+            DoCommandAndWait(oss.str(), sp);
+        }
+    }
+
     return 0;
 }
 
