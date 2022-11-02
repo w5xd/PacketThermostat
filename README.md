@@ -153,3 +153,12 @@ a trigger temperature for the HVAC input temperature sensor.
 The PacketThermostatSettings application is an easy way to set up
 this feature. It sets the required parameters that configure this feature: the trigger temperature, the shutdown time,
 the thermostat signal combinations that indicate a heat mode, and the thermostat signals to turn off to shut down the furnace.
+
+Library versions that fit in program memory for this build:
+Using library RFM69_LowPowerLab at version 1.5.1 
+Using library SPI at version 1.0 
+Using library Wire at version 1.0  
+Using library EEPROM at version 2.0 
+Using library SparkFun SerLCD Arduino Library at version 1.0.9  
+Using library SparkFun Qwiic RTC RV8803 Arduino Library at version 1.2.2 
+Using library SPIFlash_LowPowerLab at version 101.1.3 in folder: D:\Users\NonPr
