@@ -59,7 +59,7 @@ THE SOFTWARE.
 #define FURNACE_NODEID "99"
 
 namespace {
-    const uint8_t MASK_O = 1 << BN_X1;
+    const uint8_t MASK_O = 1 << BN_X1; // An obvious update to this program would be to support the standard "B" thermostat wire instead of this "O" wire
     const uint8_t MASK_W = 1 << BN_W;
     const uint8_t MASK_Y = 1 << BN_X2;
     const uint8_t MASK_Y2 = 1 << BN_Z2;
@@ -330,7 +330,7 @@ namespace {
                               std::hex << static_cast<int>(toClear);
         DoCommandAndWait(safety1.str(), sp);
 
-        dontCare = ~(MASK_Y | MASK_O);
+        dontCare = ~(MASK_Y | MASK_O); // Y and O are what we DO care about.
         mustMatchMask = MASK_Y ; // compressor ON, and reversing valve is HEAT
         std::ostringstream safety2;
         safety2 << "HS 2 " << std::hex << static_cast<int>(dontCare) << " " <<

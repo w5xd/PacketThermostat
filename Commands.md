@@ -114,7 +114,9 @@ always has only one MODE, and the only setting it has is its NAME.
  &lt;n&gt; is 0 through 4 as the TYPEs above, and &lt;m&gt; must be less than the number
  specified in COUNT above. This command sets the Packet Thermostat's type and mode of operation. Subsequent
  commands documented below (starting with HVAC) will apply to this particular TYPE and MODE. This
-command sets the Packet Thermostat's current operating state, and initializes it from EEPROM.</li>
+command sets the Packet Thermostat's current operating state, initializes its
+settings from EEPROM, and sets the EEPROM state to restore this TYPE and MODE should the
+thermostat power down and back up.</li>
  <li><code>HVAC COMMIT</code><br/>
  The HVAC_SETTINGS and HVAC commands (below) are not written to EEPROM until this COMMIT command. This means, for example, that
  if "HVAC_SETTINGS 200" has been used to set the current target temperature to 20C (which is 68F) and for
