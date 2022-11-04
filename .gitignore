@@ -5,3 +5,5 @@ EP*/
 .vs/
 PCB/REV*-Gerbers/
 *.user
+Debug/
+Release/

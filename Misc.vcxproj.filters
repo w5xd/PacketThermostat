@@ -21,6 +21,7 @@
     <None Include="thermostat wireless remote circuit.pdf" />
     <None Include="thermostat wireless remote circuit.vsd" />
     <None Include="Assembly.md" />
+    <None Include="Commands.md" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="thermostat wireless remote circuit (2).png">

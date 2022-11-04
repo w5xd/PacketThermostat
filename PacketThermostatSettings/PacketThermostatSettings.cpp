@@ -59,12 +59,15 @@ THE SOFTWARE.
 #define FURNACE_NODEID "99"
 
 namespace {
-    const uint8_t MASK_O = 1 << BN_X1;
     const uint8_t MASK_W = 1 << BN_W;
     const uint8_t MASK_Y = 1 << BN_X2;
     const uint8_t MASK_Y2 = 1 << BN_Z2;
     const uint8_t MASK_G = 1 << BN_Z1;
     const uint8_t MASK_DH = 1 << BN_ZX;
+
+    // The default for this program is to support the O wire reversing valve logic. Command line -B switches to B wire logic.
+    uint8_t MASK_O = 1 << BN_X1; 
+    uint8_t MASK_B = 0;
 
     int doConfigure(PacketThermostat::SerialPort &, int argc, char **argv);
     int doSetMode(PacketThermostat::SerialPort &, int argc, char **argv);
@@ -164,8 +167,30 @@ namespace {
 
  int doConfigure(PacketThermostat::SerialPort &sp, int argc, char **argv)
 {
+     std::string wireNames = "HV R Y2 G W d Y O";
+     uint32_t sensorMask = 0;
+     for (int i = 0; i < argc; i++)
+     {   // scan command line for -s
+         if (strcmp(argv[i], "-s") == 0)
+         {
+             i += 1;
+             if (i < argc)
+             {
+                 int sensor = atoi(argv[i]);
+                 sensorMask |= 1 << sensor;
+             }
+         }
+         else if (strcmp(argv[i], "-B") == 0)
+         {
+             wireNames = "HV R Y2 G W d Y B";
+             MASK_B = 1 << BN_X1;
+             MASK_O = 0;
+         }
+     }
+
+
     // name the wires
-    DoCommandAndWait("HV R Y2 G W d Y O", sp);
+    DoCommandAndWait(wireNames, sp);
 
     uint8_t compressorMask = MASK_Y | MASK_Y2;
     {
@@ -191,12 +216,15 @@ namespace {
     unsigned char map[SIGNAL_COMBINATIONS];
     for (unsigned i = 0; i < SIGNAL_COMBINATIONS; i++)
     {
-        static const uint8_t HEATPUMP_MASK = MASK_Y | MASK_Y2;
+        const uint8_t COMPRESSOR_MASK = MASK_Y | MASK_Y2;
         map[i] = i << 1; // initialize map to input to output. Shift-by-one cuz signals start one bit shifted left
         uint8_t item = map[i];
-        if ((0 != (item & HEATPUMP_MASK)) && (0 == (item & MASK_O)))// Either of Y or Y2 without O?
+        if ((0 != (item & COMPRESSOR_MASK))  // detects compressor on: Y or Y2
+            && (0 == (item & MASK_O))// without O?
+            && (MASK_B == (item & MASK_B))// with B?
+            )
         {
-            map[i] &= ~HEATPUMP_MASK; // turn off heat pump
+            map[i] &= ~COMPRESSOR_MASK; // turn off heat pump
             map[i] |= MASK_W;   // turn on furnace
         }
     }
@@ -216,20 +244,6 @@ namespace {
     }
     DoCommandAndWait("HVAC COMMIT", sp); // into EEPROM on the Packet Thermostat
 
-    uint32_t sensorMask = 0;
-    for (int i = 0; i < argc; i++)
-    {   // scan command line for -s
-        if (strcmp(argv[i], "-s") == 0)
-        {
-            i += 1;
-            if (i < argc)
-            {
-                int sensor = atoi(argv[i]);
-                sensorMask |= 1 << sensor;
-            }
-        }
-    }
-
     // HEAT mode
     DoCommandAndWait("HVAC TYPE=2 COUNT=2", sp);    // set up a mapping mode 
     DoCommandAndWait("HVAC TYPE=2 MODE=0", sp); // switch to the newly created mode
@@ -240,10 +254,10 @@ namespace {
         heatSettings << "HVAC_SETTINGS 1 0"; // temperatures are 0.1C off, 0.0C on
         heatSettings << " " << std::hex << sensorMask;  // thermometer mask
         heatSettings << " " << std::hex << (int)(MASK_G); // fan mask
-        heatSettings << " " << std::hex << (int)MASK_DH; // always on (dehumidify--reverse logic)
-        heatSettings << " " << std::hex << (int)(MASK_Y|MASK_G | MASK_DH); // heat stage 1
-        heatSettings << " " << std::hex << (int)(MASK_Y|MASK_Y2|MASK_G | MASK_DH); // heat state 2 
-        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_DH); // always on (dehumidify--reverse logic)
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_G | MASK_DH); // heat stage 1
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_Y2 | MASK_G | MASK_DH); // heat state 2 
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
 
         int secondsToStage2Heat = 60 * 15; // 15 minutes of stage 1 by default
         heatSettings << " " << std::dec << secondsToStage2Heat; // 
@@ -313,6 +327,44 @@ namespace {
     }
 
     DoCommandAndWait("HVAC COMMIT", sp);
+
+    // Heat mode safety check. Force furnace off if intake temperature exceeds setting
+    DoCommandAndWait("HS T 300", sp); // heat safety timeout 5 minutes. once triggered, off this long
+    DoCommandAndWait("HS C 322", sp); // heat safety temperature 32.2C (about 90F)
+
+    {
+        std::ostringstream safety1;
+        // if W is on, force it off
+        uint8_t dontCare = ~MASK_W;
+        uint8_t mustMatchMask  = MASK_W;
+        uint8_t toClear = MASK_Y | MASK_Y2 | MASK_W;
+
+        safety1 << "HS 1 " << std::hex << static_cast<int>(dontCare) << " " << 
+                              std::hex << static_cast<int>(mustMatchMask) << " " <<
+                              std::hex << static_cast<int>(toClear);
+        DoCommandAndWait(safety1.str(), sp);
+
+        dontCare = ~(MASK_Y | MASK_O | MASK_B); // Y and O or B are what we DO care about.
+        mustMatchMask = MASK_Y | MASK_B ; // compressor ON, and reversing valve is HEAT
+        std::ostringstream safety2;
+        safety2 << "HS 2 " << std::hex << static_cast<int>(dontCare) << " " <<
+            std::hex << static_cast<int>(mustMatchMask) << " " <<
+            std::hex << static_cast<int>(toClear);
+        DoCommandAndWait(safety2.str(), sp);
+
+        DoCommandAndWait("HS 3", sp);
+    }
+
+    {
+        // clear all schedule entries
+        const int NUM_SCHEDULE_ENTRIES = 16;
+        for (int i = 0; i < NUM_SCHEDULE_ENTRIES; i++)
+        {
+            std::ostringstream oss;
+            oss << "SE " << i;
+            DoCommandAndWait(oss.str(), sp);
+        }
+    }
 
     return 0;
 }

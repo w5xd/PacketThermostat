@@ -29,12 +29,11 @@ THE SOFTWARE. */
 ** through to the furnace.
 **
 ** It accepts commands over its RFM69 packet radio that it uses to set into modes
-** that modify the 24VAC commands to the furnace.
+** that modify the 24VAC commands to the furnace. And it sends reports over the RFM69.
 **
 ** The PCB and sketch designs handle up to 6 wires of 24VAC controls. 
 ** These 6 wires, for example, usually include W for heat, G for fan, Y for a compressor (either AC or heat pump)
-** O or B for heat pump. Multi-stage furnace, heat pump, and air conditioners each might add another wire.
-** The PCB (and this sketch) support up to 6 signals.
+** O or B for a reversing valve. A multi-stage furnace, heat pump, and/or air conditioners each might add another wire.
 **
 ** "Communicating" thermostats are not supported.
 **
@@ -45,7 +44,7 @@ THE SOFTWARE. */
 ** affects only the necessary wiring of the PCB connectors and jumpers. This sketch is not affected by the
 ** R wire 24VAC supply wiring.
 **
-** This PCB design requires a dedicated 5VDC barrel connector power supply.
+** This PCB design requires a dedicated 5VDC power supply through its barrel connector.
 **
 ** A Serial LCD display is supported via a qwiic connector. A calendar/clock (RTC) is also supported
 ** on qwiic. This board does not support any user input except via the packet radio.
@@ -76,17 +75,16 @@ THE SOFTWARE. */
 #include <EEPROM.h>
 #include <SerLCD.h>
 #include <SparkFun_RV8803.h>
+#include <avr/wdt.h>
 
 // custom library
 #include <RadioConfiguration.h>
 #include "ThermostatCommon.h"
+#include "Rfm69RawFrequency.h"
 
-//#undef F
-//#define F(x) x
-
-#define USE_SERIAL 1        // for testing, all access to Serial can be removed
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
-#define SERIAL_DEBUG 0 // extra output
+
+#define SCHEDULE_ENTRIES 1 // set to zero to remove this feature
 
 namespace LCD {
     const byte MODE_COLUMN = 0;
@@ -198,12 +196,41 @@ namespace LCD {
 namespace
 {
     const int MAX_WIRE_NAME_LEN = 2;
+    struct HeatSafetyMask_t {
+        uint8_t dontCareMask;
+        uint8_t mustMatchMask;
+        uint8_t toClear;
+        HeatSafetyMask_t()  { memset(this, 0, sizeof(*this));  } // memset generates smaller code than explicit initializers
+    };
+    static_assert(sizeof(HeatSafetyMask_t) == 3, "no padding");
+    const int NUM_HEAT_SAFETY_ENTRIES = 3;
+#if SCHEDULE_ENTRIES
+    struct ScheduleEntry_t {
+        uint8_t degreesCx5; // 255 max, 255/5 = 51 degrees C (way too hot)
+        unsigned TimeOfDayHour : 5; // 0 to 23
+        unsigned TimeOfDayMinute: 6; // 0 to 60
+        unsigned DaysOfWeek: 7; // bit mask, 
+        unsigned AutoMode: 1;
+        ScheduleEntry_t() { memset(this, 0, sizeof(*this)); }
+        };
+    static_assert(sizeof(ScheduleEntry_t) == 4, "EEPROM size changed!");
+    const int NUM_SCHEDULE_TEMPERATURE_ENTRIES = 16;
+#endif
     enum class EepromAddresses {PACKET_THERMOSTAT_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
                 SIGNAL_LABEL_ASSIGNMENT = PACKET_THERMOSTAT_START,
                 DISPLAY_UNITS_ADDRESS = SIGNAL_LABEL_ASSIGNMENT + (OutregBits::NUMBER_OF_SIGNALS * MAX_WIRE_NAME_LEN),
                 COMPRESSOR_MASK,
                 COMPRESSOR_HOLD_SECONDS,
-                TOTAL_EEPROM_USED = COMPRESSOR_HOLD_SECONDS + 2};
+                HEATSAFETY_HOLD_SECONDS =  COMPRESSOR_HOLD_SECONDS + 2,
+                HEATSAFETY_TRIGGER_TEMPERATURECx10 = HEATSAFETY_HOLD_SECONDS + 2,
+                HEATSAFETY_MAP = HEATSAFETY_TRIGGER_TEMPERATURECx10 + 2,
+                SCHEDULE_TEMPERATURE_ENTRIES = HEATSAFETY_MAP + NUM_HEAT_SAFETY_ENTRIES * sizeof(HeatSafetyMask_t),
+#if SCHEDULE_ENTRIES
+                TOTAL_EEPROM_USED = SCHEDULE_TEMPERATURE_ENTRIES + NUM_SCHEDULE_TEMPERATURE_ENTRIES * sizeof(ScheduleEntry_t)
+#else
+                TOTAL_EEPROM_USED = SCHEDULE_TEMPERATURE_ENTRIES
+#endif
+    };
 
     // Arduino pin assignments **********************************************************
     // These correspond with the PCB layout**********************************************
@@ -249,17 +276,23 @@ namespace
 
     const int CMD_BUFLEN = 80;
 
+    const int INPUT_AC_ACTIVE_MIN_MSEC = 100; // this long seen nothing on input, declare it OFF
+
     // enum OutregBits applies to both the input and output registers
     uint8_t OutputRegister = 0;
     uint8_t InputRegister = 0;
     bool InputsToHvacFlag;
     msec_time_stamp_t CompressorOffStartTime;
     bool CompressorOffTimeActive;
-    const int INPUT_AC_ACTIVE_MIN_MSEC = 100; // this long seen nothing on input, call it OFF
+    msec_time_stamp_t HeatSafetyOffStartTime;
+    uint8_t HeatSafetyShutoffMask;
+    bool HeatSafetyOffTimeActive;
+    const char * const HeatSafetyBanner = "OVER!";
+    int16_t TinletTemperatureCx10; // last calculated copy of TinleADCsum
 
     char cmdbuf[CMD_BUFLEN];
     unsigned char charsInBuf;
-    RFM69 radio(RFM69_SPI_CS_PIN, RMF69_INT_PIN);
+    RFM69rawFrequency radio(RFM69_SPI_CS_PIN, RMF69_INT_PIN);
     RadioConfiguration radioConfiguration;
     bool radioSetupOK = false;
     const uint8_t GATEWAY_NODEID = 1;
@@ -292,7 +325,7 @@ namespace
 
     void radioPrintInfo()
     {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETUP
         Serial.print(F("Node "));
         Serial.print(radioConfiguration.NodeId(), DEC);
         Serial.print(F(" on network "));
@@ -302,8 +335,7 @@ namespace
         Serial.print(F(" key "));
         radioConfiguration.printEncryptionKey(Serial);
         Serial.println();
-        Serial.print(F("Freq= ")); Serial.print(radio.getFrequency() / 1000);
-        Serial.println(F(" KHz"));
+        Serial.print(F("FreqRaw=")); Serial.println(radio.getFrequencyRaw() );
 #endif
     }
 
@@ -328,7 +360,7 @@ namespace
         wireName[0] = 0;
         if (i < OutregBits::NUMBER_OF_SIGNALS)
         {
-            int addr = static_cast<uint8_t>(EepromAddresses::SIGNAL_LABEL_ASSIGNMENT) + (i * MAX_WIRE_NAME_LEN);
+            int addr = static_cast<uint16_t>(EepromAddresses::SIGNAL_LABEL_ASSIGNMENT) + (i * MAX_WIRE_NAME_LEN);
             wireName[0] = EEPROM.read(addr++);
             wireName[1] = EEPROM.read(addr++);
             wireName[2] = 0;
@@ -343,7 +375,7 @@ namespace
 
     uint8_t getCompressorMask()
     {
-            int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_MASK);
+            int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_MASK);
             uint8_t ret = EEPROM.read(addr);
             if (ret == static_cast<uint8_t>(0xff))
                 return 0;
@@ -352,23 +384,95 @@ namespace
 
     uint16_t getCompressorHoldSeconds()
     {
-            int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
+            int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
             uint16_t ret;
             EEPROM.get(addr, ret);
             return ret;
     }
 
+    uint16_t getHeatSafetyHoldSeconds()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_HOLD_SECONDS);
+        uint16_t ret;
+        EEPROM.get(addr, ret);
+        return ret;
+    }
+
+    int16_t getHeatSafetyTemperatureCx10()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_TRIGGER_TEMPERATURECx10);
+        int16_t ret;
+        EEPROM.get(addr, ret);
+        return ret;
+    }
+
+    HeatSafetyMask_t getHeatSafetyMask(uint8_t which)
+    {
+        HeatSafetyMask_t ret;
+        if (which < NUM_HEAT_SAFETY_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_MAP);
+            addr += which * sizeof(ret);
+            EEPROM.get(addr, ret);
+        }
+        return ret;
+    }
+
     void setCompressorMask(uint8_t mask)
     {
-            int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_MASK);
+            int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_MASK);
             EEPROM.write(addr, mask);
     }
 
     void setCompressorHoldSeconds(uint16_t s)
     {
-        int addr = static_cast<uint8_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
+        int addr = static_cast<uint16_t>(EepromAddresses::COMPRESSOR_HOLD_SECONDS);
         EEPROM.put(addr, s);
     }
+
+    void setHeatSafetyHoldSeconds(uint16_t s)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_HOLD_SECONDS);
+        EEPROM.put(addr, s);
+    }
+
+    void setHeatSafetyTemperatureX10(int16_t s)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_TRIGGER_TEMPERATURECx10);
+        EEPROM.put(addr, s);
+    }
+
+    void setHeatSafetyMask(uint8_t which, const HeatSafetyMask_t &m)
+    {
+        if (which < NUM_HEAT_SAFETY_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::HEATSAFETY_MAP)  + which * sizeof(m);
+            EEPROM.put(addr, m);
+        }
+    }
+
+#if SCHEDULE_ENTRIES
+    void setScheduleEntry(uint8_t which, const ScheduleEntry_t& se)
+    {
+        if (which < NUM_SCHEDULE_TEMPERATURE_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::SCHEDULE_TEMPERATURE_ENTRIES) + which * sizeof(se);
+            EEPROM.put(addr, se);
+        }
+    }
+
+    ScheduleEntry_t getScheduleEntry(uint8_t which)
+    {
+        ScheduleEntry_t ret;
+        if (which < NUM_SCHEDULE_TEMPERATURE_ENTRIES)
+        {
+            int addr = static_cast<uint16_t>(EepromAddresses::SCHEDULE_TEMPERATURE_ENTRIES);
+            addr += which * sizeof(ret);
+            EEPROM.get(addr, ret);
+        }
+        return ret;
+    }
+#endif
 
     char *reportHvac(char *p, uint8_t mask, char t)
     {
@@ -406,7 +510,7 @@ namespace
     {
         if (i < NUMBER_OF_SIGNALS) {
             int addr = static_cast<int>(EepromAddresses::SIGNAL_LABEL_ASSIGNMENT) + (i * MAX_WIRE_NAME_LEN);
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
             Serial.print(F("setHvacWireName("));
             Serial.print((int)i); Serial.print(F(","));
             auto q = p;
@@ -498,12 +602,26 @@ namespace
         *p++ = ' ';
         p = formatTemperature(p, degreesCx10FromC7089ADC(tOutsideCx10), 's');
         *p++ = ' ';
+        int16_t t; int16_t a;
+        if (hvac->GetTargetAndActual(t, a))
+        {
+            p = formatTemperature(p, t, 't');
+            *p++ = ' ';
+            p = formatTemperature(p, a, 'a');
+            *p++ = ' ';
+        }
+        else 
+        {
+            strcpy(p, "0 0 ");
+            p += 4;
+        }
         rtc.updateTime();
         auto q = rtc.stringTime8601();
         while (*p++ = *q++);
+
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
         Serial.print(radioSetupOK ? "Radio: " : "Not sent ");
         Serial.println(reportbuf);
 #endif
@@ -527,7 +645,7 @@ namespace
         while (*p++ = *q++);
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(radioSetupOK ? "Radio: " : "Not sent ");
         Serial.println(reportbuf);
 #endif
@@ -552,7 +670,7 @@ namespace
             sec = aDecimalToInt(p);
             dow = aDecimalToInt(p);
             rtc.setTime(sec, minute, hour, dow, day, month, year);
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
             Serial.print(F("Setting clock to year:"));
             Serial.print(year);
             Serial.print(F(" mon:"));
@@ -561,15 +679,17 @@ namespace
             Serial.println(day);
 #endif
             return true;
-        } else if (toupper(cmd[0]) == 'I')
+        } 
+        else if (toupper(cmd[0]) == 'I')
         {
             radioPrintInfo();
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
             Serial.print(F("Compressor Off active ="));
             Serial.println(CompressorOffTimeActive ? "active" : "off");
 #endif
             return true;
-        } else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'V' && isspace(cmd[2]))
+        } 
+        else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'V' && isspace(cmd[2]))
         {   // set wire names in EEPROM
             // HV <R> <Z2> <Z1> <W> <ZX> <X2> <X1>
             const char *p = cmd + 2;
@@ -606,12 +726,14 @@ namespace
                     setHvacWireName(i, nameBuf);
             }            
             return true;
-        } else if (toupper(cmd[0]) == 'D' && toupper(cmd[1]) == 'U' && cmd[2] == '=')
+        } 
+        else if (toupper(cmd[0]) == 'D' && toupper(cmd[1]) == 'U' && cmd[2] == '=')
         {   // DU=F and DU=C  for farenheit and celsius. Only affects LCD
             displayLcdFarenheit = cmd[3] == 'F';
             EEPROM.write(static_cast<int>(EepromAddresses::DISPLAY_UNITS_ADDRESS), displayLcdFarenheit ? 1 : 0);
             return true;
-        } else if (0 != (q = strstr(cmd, COMPRESSOR)))
+        } 
+        else if (0 != (q = strstr(cmd, COMPRESSOR)))
         {
             q += sizeof(COMPRESSOR) - 1;
             uint8_t mask = aHexToInt(q);
@@ -620,11 +742,78 @@ namespace
             uint16_t seconds = aDecimalToInt(q);
             setCompressorMask(mask);
             setCompressorHoldSeconds(seconds);
-        } else if (0 == strcmp(cmd, "RH"))
+            return true;
+        } 
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+        else if (0 == strcmp(cmd, "RH"))
         {
             radioHvacReport(InputRegister, OutputRegister);
+            return true;
         }
-#if SERIAL_DEBUG > 0
+#endif
+        else if (toupper(cmd[0]) == 'H' && toupper(cmd[1]) == 'S')
+        {
+            q = cmd + 2;
+            while (isspace(*q)) q += 1;
+            auto c = *q++;
+            if (c != 0) {
+                while (isspace(*q)) q += 1;
+                switch (c)
+                {
+                case 'C': // set temperature in Celsius
+                    setHeatSafetyTemperatureX10(aDecimalToInt(q));
+                    return true;
+
+                case 'T': // set timer in  seconds
+                    setHeatSafetyHoldSeconds(aDecimalToInt(q));
+                    return true;
+
+                case '1':
+                case '2':
+                case '3':
+                {
+                    int which = c - '1';
+                    HeatSafetyMask_t m;
+                    m.dontCareMask = aHexToInt(q);
+                    if (*q)
+                        m.mustMatchMask = aHexToInt(q);
+                    if (*q)
+                        m.toClear = aHexToInt(q);
+                    setHeatSafetyMask(which, m);
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
+                    Serial.print("Set Safety mask i=");
+                    Serial.print(which);
+                    Serial.print(" dc=0x"); Serial.print(m.dontCareMask, HEX);
+                    Serial.print(" mm=0x"); Serial.print(m.mustMatchMask, HEX);
+                    Serial.print(" tc=0x"); Serial.println(m.toClear, HEX);
+#endif
+                }
+                return true;
+                }
+            }
+        }
+#if SCHEDULE_ENTRIES
+        else if (toupper(cmd[0]) == 'S' && toupper(cmd[1]) == 'E')
+        {   // SE [which] [Celsiusx10] [HOUR] [MINUTE] [DAY-OF-WEEK-MASK]
+            q = cmd + 2;
+            while (isspace(*q)) q += 1;
+            uint8_t which = aDecimalToInt(q);
+            if (which >= NUM_SCHEDULE_TEMPERATURE_ENTRIES) return false;
+            ScheduleEntry_t se;
+            se.degreesCx5 = aDecimalToInt(q) >> 1; // x10 in command, saved as X5
+            se.TimeOfDayHour = aDecimalToInt(q);
+            se.TimeOfDayMinute = aDecimalToInt(q);
+            se.DaysOfWeek = aHexToInt(q);
+            se.AutoMode = *q == '1';
+            setScheduleEntry(which, se);
+            return true;
+        }
+#endif
+#if USE_SERIAL >= SERIAL_PORT_DEBUG
+        else if (strcmp(cmd, "CRASH") == 0)
+        {
+            ProcessCommand(cmd, len);
+        }
         else if (toupper(cmd[0]) == 'U' && toupper(cmd[1]) == 'O' && cmd[2] == '=' && cmd[3] == '0' && cmd[4]=='x')
         {
             q = cmd+5;
@@ -635,9 +824,11 @@ namespace
         return false;
     }
 
+    void setTemperatureCx10(int16_t t, bool autoMode = false);
+
     void routeCommand(char* cmd, unsigned char len, uint8_t senderid = -1, bool toMe = true)
     {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
         Serial.print(F("Command: ")); Serial.print(cmd); 
         if (senderid != static_cast<uint8_t>(-1))
         {
@@ -646,25 +837,34 @@ namespace
         else
             Serial.println();
 #endif
-        if (radioConfiguration.ApplyCommand(cmd))
+        if (toMe && radioConfiguration.ApplyCommand(cmd))
         {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
             Serial.println(F("Command accepted for radio"));
 #endif
         }
-        else if (ProcessCommand(cmd, len))
+        else if (toMe && ProcessCommand(cmd, len))
         {
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
             Serial.println(F("Command accepted for main"));
 #endif
         }
-        else if (hvac->ProcessCommand(cmd, len, senderid, toMe))
+        else
         {
-#if USE_SERIAL > 0
-            Serial.println(F("Command accepted for HVAC"));
+            int16_t targetCx10; int16_t actualCx10;
+            bool tempOK = hvac->GetTargetAndActual( targetCx10, actualCx10);
+            auto tempType = hvac->TypeNumber();
+            auto tempMode = hvac->ModeNumber();
+            if (hvac->ProcessCommand(cmd, len, senderid, toMe))
+            {
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+                Serial.println(F("Command accepted for HVAC"));
 #endif
-            LCD::printMode(hvac->ModeNameString());
-            InputsToHvacFlag = true;
+                LCD::printMode(hvac->ModeNameString());
+                if (tempOK && hvac->TypeNumber() == tempType && hvac->ModeNumber() != tempMode)
+                    setTemperatureCx10(targetCx10);
+                InputsToHvacFlag = true;
+            }
         }
     }
 
@@ -684,6 +884,18 @@ namespace
         *p++ = 0;
         LCD::printTemperatures(reportbuf);
     }
+
+    void setTemperatureCx10(int16_t t, bool autoMode)
+    {
+        static char buf[20];
+        strcpy(buf, HVAC_SETTINGS);
+#if        HVAC_AUTO_CLASS
+        if (autoMode)
+            strcpy(buf, AUTO_SETTINGS);
+#endif
+        itoa(t, buf + strlen(buf), 10);
+        routeCommand(buf, strlen(buf));
+    }
 }
 
 //  compile-time reference to last EEPROM address used in this ino file
@@ -696,6 +908,11 @@ namespace Furnace {
     {
         mask &= OUTPUT_SIGNAL_MASK;
         LastOutputWrite = mask;
+
+        if (HeatSafetyOffTimeActive)
+            mask &= HeatSafetyShutoffMask;
+
+        // check compressor short cycling logic
         uint8_t compressorMask = getCompressorMask();
         if (!CompressorOffTimeActive && compressorMask != 0xff)
         {
@@ -719,8 +936,8 @@ namespace Furnace {
 
         OutputRegister = mask;
 #if ENABLE_OUTPUT_RELAYS > 0
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
-        Serial.print(F("UpdateOutputs: 0x")); 
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
+        Serial.print(F("UpdateOutputs: 0x"));
         Serial.println(mask, HEX);
 #endif
         SPI.beginTransaction(SPISettings(3000000, MSBFIRST, SPI_MODE0));
@@ -791,8 +1008,18 @@ uint32_t aHexToInt(const char*&p)
 
 void setup()
 {
-#if USE_SERIAL > 0
+#if USE_SERIAL > SERIAL_PORT_OFF
     Serial.begin(9600);
+#endif
+#if USE_SERIAL >= SERIAL_PORT_DEBUG 
+    for (uint8_t i = 0; i < 1500; i++)
+        if (Serial.read() >= 0)
+            break;
+        else
+            delay(10);
+    Serial.println(F("PacketThermostat DEBUG"));
+#elif USE_SERIAL >= SERIAL_PORT_OFF 
+    Serial.println(F("PacketThermostat Rev03"));
 #endif
 
     digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
@@ -803,28 +1030,16 @@ void setup()
     SPI.begin();
     Furnace::UpdateOutputs(0);
 
-#if USE_SERIAL > 0
-#if SERIAL_DEBUG > 0
-    for (uint8_t i = 0; i < 1500; i++)
-        if (Serial.read() >= 0)
-            break;
-        else
-            delay(10);
-    Serial.println(F("PacketThermostat DEBUG"));
-#else
-    Serial.println(F("PacketThermostat Rev02"));
-#endif
-#endif
     // setup radio
     // setup RTC
     if (rtc.begin() == false)
     {
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE 
         Serial.println(F("rtc begin FAILED"));
 #endif
     } else {
         rtc.set24Hour();
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE 
         Serial.println(F("rtc begin OK!"));
         rtc.setToCompilerTime();
         String ct = rtc.stringTime();
@@ -844,22 +1059,22 @@ void setup()
         if (ok)
         {
             uint32_t freq;
-            if (radioConfiguration.FrequencyKHz(freq))
-                radio.setFrequency(1000 * freq);
+            if (radioConfiguration.FrequencyRaw(freq))
+                radio.setFrequencyRaw(freq);
             radio.spyMode(true);
-            radioSetupOK = radio.getFrequency() != 0;
+            radioSetupOK = radio.getFrequencyRaw() != 0;
         }
-    #if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_DEBUG
         Serial.println(ok ? "Radio init OK!" : "Radio init FAILED");
         radioPrintInfo();
-    #endif   
+#endif   
     }
     else
     {
-    #if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.println("Radio EEPROM not setup");
         radioPrintInfo();
-    #endif   
+#endif   
     }
 
     if (radioSetupOK)
@@ -884,18 +1099,22 @@ void setup()
     pinMode(PCB_INPUT_R_ACTIVE_PIN, INPUT_PULLUP);
 
     ThermostatCommon::setup();
+
+    wdt_enable(WDTO_8S);
 }
 
 void loop()
-{   auto now = millis();
+{   wdt_reset();
+    auto now = millis();
     static_assert(sizeof(now) == sizeof(msec_time_stamp_t), "msec_time_stamp_t must match type of millis()");
     auto previousInputRegister = InputRegister;
     auto previousOutputRegister = OutputRegister;
 
     {   // every second (or so) update the RTC time on the LCD
-        static const unsigned long LCD_TIME_UPDATE_MSEC = 1000;
+        const unsigned long LCD_TIME_UPDATE_MSEC = 1000;
         static unsigned long lastLCDupdate;
         static bool firstTime=true;
+        static_assert(sizeof(lastLCDupdate) == sizeof(now), "lastLCDupdate wrong size");
         int diff = now - lastLCDupdate;
         if (diff > LCD_TIME_UPDATE_MSEC)
         {
@@ -933,10 +1152,76 @@ void loop()
         }
     }
 
+#if SCHEDULE_ENTRIES
+    {   // check schedule slightly faster than once per minute
+        const unsigned long SCEDULE_TIME_UPDATE_MSEC = 40000; // less than one minute
+        static unsigned long lastScheduleUpdate;
+        static_assert(sizeof(lastScheduleUpdate) == sizeof(now), "lastScheduleUpdate wrong size");
+        int diff = now - lastScheduleUpdate;
+        if (diff > SCEDULE_TIME_UPDATE_MSEC)
+        {
+            lastScheduleUpdate = now;
+            rtc.updateTime();
+            uint8_t hrs = rtc.getHours();
+            uint8_t mins = rtc.getMinutes();
+            int weekday = rtc.getWeekday();
+            for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
+            {
+                auto se = getScheduleEntry(i);
+                if ((0 != ((int)se.DaysOfWeek & (1 << weekday))) &&
+                    hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
+                    mins == static_cast<uint8_t>(se.TimeOfDayMinute))
+                {
+                    setTemperatureCx10((int)se.degreesCx5 << 1, se.AutoMode);
+                    LCD::reinit = true;
+                }
+            }
+        }
+    }
+#endif
+
     if (CompressorOffTimeActive && (now - CompressorOffStartTime) > 1000L * getCompressorHoldSeconds())
     {   // deal with possible expiration of the compressor short cycle prevention timer
         CompressorOffTimeActive = false;
         Furnace::SetOutputBits();
+    }
+
+    if (HeatSafetyOffTimeActive)
+    {
+        if ((now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
+        {
+            HeatSafetyOffTimeActive = false;
+            LCD::printBanner(hvac->ModeNameString());
+            Furnace::SetOutputBits();
+        }
+    }
+    if (!HeatSafetyOffTimeActive)
+    {   // check inlet temperature in heat modes and shut down if EEPROM settings say so
+        auto heatSafetySeconds = getHeatSafetyHoldSeconds();
+        if (heatSafetySeconds > 0 && heatSafetySeconds != static_cast<uint16_t>(0xffff))
+        {
+            auto heatSafetyTempCx10 = getHeatSafetyTemperatureCx10();
+            if (heatSafetyTempCx10 > 0)
+            {
+                if (heatSafetyTempCx10 <= TinletTemperatureCx10)
+                {   // safety triggerred
+                    for (uint8_t i = 0; i < NUM_HEAT_SAFETY_ENTRIES; i++)
+                    {
+                        HeatSafetyMask_t m = getHeatSafetyMask(i);
+                        uint8_t bits = ~m.dontCareMask & Furnace::LastOutputWrite;
+                        if (bits == m.mustMatchMask && m.toClear != 0)
+                        { // table indicates this IS a heat mode, so shut down heat
+                            HeatSafetyOffStartTime = millis();
+                            HeatSafetyOffTimeActive = true;
+                            LCD::printBanner(HeatSafetyBanner);
+                            HeatSafetyShutoffMask = ~m.toClear;
+                            Furnace::SetOutputBits();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     uint8_t inputsAsRead = 0;
@@ -1029,6 +1314,7 @@ void loop()
             case DO_REPORT:
                 {
                     radioTemperatureReport(TinletADCsum, ToutletADCsum, TexternalADCsum);
+                    TinletTemperatureCx10 = degreesCx10fromLM235ADCx64(TinletADCsum);
                     lastTemperatureAcquireMsec = now;
                     temperatureAcquireState  = WAIT_REPORT_INTERVAL;
                 }
@@ -1048,7 +1334,7 @@ void loop()
     }
 
     // check for Serial input
-#if USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_PROMPT_ONLY
     while (Serial.available())
     {
         auto c = Serial.read();
@@ -1077,7 +1363,7 @@ void loop()
         routeCommand(reportbuf, sizeof(radio.DATA), static_cast<uint8_t>(radio.SENDERID), toMe);
         if (toMe && radio.ACKRequested())
             radio.sendACK();
-#if SERIAL_DEBUG > 0 && USE_SERIAL > 0
+#if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("FromRadio: \""));
         Serial.print(reportbuf);
         Serial.print(F("\" sender:"));
@@ -1091,7 +1377,7 @@ void loop()
 
     if (LCD::reinit)
     {   // the LCD display seems to get out of sync. Force a full update of it occasionally
-        LCD::printBanner(hvac->ModeNameString());
+        LCD::printBanner(HeatSafetyOffTimeActive ? HeatSafetyBanner : hvac->ModeNameString());
         lcdHvacReport(OutputRegister & OUTPUT_SIGNAL_MASK);
         LCD::reinit = false;
     }
