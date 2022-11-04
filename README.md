@@ -154,11 +154,29 @@ The PacketThermostatSettings application is an easy way to set up
 this feature. It sets the required parameters that configure this feature: the trigger temperature, the shutdown time,
 the thermostat signal combinations that indicate a heat mode, and the thermostat signals to turn off to shut down the furnace.
 
+Fitting the sketch into program memory
+
 Library versions that fit in program memory for this build:
+<code><pre>
 Using library RFM69_LowPowerLab at version 1.5.1 
 Using library SPI at version 1.0 
 Using library Wire at version 1.0  
 Using library EEPROM at version 2.0 
 Using library SparkFun SerLCD Arduino Library at version 1.0.9  
 Using library SparkFun Qwiic RTC RV8803 Arduino Library at version 1.2.2 
-Using library SPIFlash_LowPowerLab at version 101.1.3 in folder: D:\Users\NonPr
+Using library SPIFlash_LowPowerLab at version 101.1.3 
+
+And in ThermostatCommon.h, these preprocessor directives:
+#define USE_SERIAL SERIAL_PORT_SETUP
+#define HVAC_AUTO_CLASS 1 // not enough program memory for all features? Turn this off.
+</pre></code>
+
+The console mode print out that you get running PacketThermostatSettings is a lot more useful if you can
+set this: <br/><code>#define USE_SERIAL SERIAL_PORT_VERBOSE</code> in ThermostatCommon.h. But it won't fit.
+
+All the features will fit if you can get a hardware programmer attached to the Pro Micro and use
+the Arduino IDE's "Sketch/Upload-using-programmer" feature. There remains a catch. The Arduino IDE upload processing
+refuses to past the compile step if the compile results in a sketch too big to fit with a boot loader,
+even if you want to use a programmer. The only way I could find to get around this nuisance was
+to track down the boards.txt file and add a new "board" that was copied from the 
+existing Sparkfun Pro Micro board setting. This is left as an exercise to the reader. 
