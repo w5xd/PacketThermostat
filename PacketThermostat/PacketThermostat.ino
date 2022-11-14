@@ -939,7 +939,7 @@ namespace Furnace {
         static auto onAtTime(now);
         const unsigned long MINIMUM_ON_MSEC = 60000L;
         
-        if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC _MSEC)) ||
+        if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC)) ||
             ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
                 (onAtTime = now, relayIsOn = true))) 
             mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
