@@ -937,7 +937,7 @@ namespace Furnace {
         const unsigned long CYCLE_MSEC = 1000/ 60;
         
         if ((relayIsOn && now - onAtTime < CYCLE_MSEC) ||
-            (((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
+            ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
                 (onAtTime = now, relayIsOn = true))) 
             mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
 
