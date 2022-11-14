@@ -1,4 +1,4 @@
-/* (c) 2021 by Wayne E. Wright, Round Rock, Texas, USA
+/* (c) 2022 by Wayne E. Wright, Round Rock, Texas, USA
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this packet thermostat software and associated documentation files 
@@ -934,10 +934,10 @@ namespace Furnace {
         
         /* But deal with possibility that W signal is coming from furnace side. 
         ** Once W relay is pulled in, keep it in for a while to prevent chatter */
-        auto now = millis();
+        const auto now = millis();
         static bool relayIsOn = false;
         static auto onAtTime = now;
-        const unsigned long MINIMUM_ON_MSEC = 60000;
+        const unsigned long MINIMUM_ON_MSEC = 60000L;
         
         if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC _MSEC)) ||
             ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
