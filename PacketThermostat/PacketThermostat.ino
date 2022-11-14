@@ -941,7 +941,8 @@ namespace Furnace {
         
         if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC)) ||
             ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
-                (onAtTime = now, relayIsOn = true))) 
+                (onAtTime = now, relayIsOn = true) //assignments
+            )) 
             mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
 
         OutputRegister = mask;
