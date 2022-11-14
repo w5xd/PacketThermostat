@@ -929,14 +929,17 @@ namespace Furnace {
             mask &= ~compressorMask; // ensure compressors not turned on
         }
 
-        // Activate hardware relay only if input W doesn't match output W
+        // Activate hardware relay if input W doesn't match output W
         mask &= ~(1 << BN_W_FAILSAFE); // hardware relay to be off
+        
+        /* But deal with possibility that W signal is coming from furnace side. 
+        ** Once W relay is pulled in, keep it in for a while to prevent chatter */
         auto now = millis();
         static bool relayIsOn = false;
         static auto onAtTime = now;
-        const unsigned long CYCLE_MSEC = 1000/ 60;
+        const unsigned long MINIMUM_ON_MSEC = 60000;
         
-        if ((relayIsOn && now - onAtTime < CYCLE_MSEC) ||
+        if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC _MSEC)) ||
             ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
                 (onAtTime = now, relayIsOn = true))) 
             mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
