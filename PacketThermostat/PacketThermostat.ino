@@ -935,8 +935,8 @@ namespace Furnace {
         /* But deal with possibility that W signal is coming from furnace side. 
         ** Once W relay is pulled in, keep it in for a while to prevent chatter */
         const auto now = millis();
-        static bool relayIsOn = false;
-        static auto onAtTime = now;
+        static bool relayIsOn(false);
+        static auto onAtTime(now);
         const unsigned long MINIMUM_ON_MSEC = 60000L;
         
         if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC _MSEC)) ||
