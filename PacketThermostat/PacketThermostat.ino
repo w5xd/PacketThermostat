@@ -911,7 +911,8 @@ namespace Furnace {
 
         if (HeatSafetyOffTimeActive)
             mask &= HeatSafetyShutoffMask;
-
+        const auto now = millis();
+        
         // check compressor short cycling logic
         uint8_t compressorMask = getCompressorMask();
         if (!CompressorOffTimeActive && compressorMask != 0xff)
@@ -921,7 +922,7 @@ namespace Furnace {
             if (compressorWasOn && compressorToBeOff)
             {   // this command is turning the compressor off
                 CompressorOffTimeActive = true;
-                CompressorOffStartTime = millis();
+                CompressorOffStartTime = now;
             }
         }
         if (CompressorOffTimeActive)
@@ -934,7 +935,6 @@ namespace Furnace {
         
         /* But deal with possibility that W signal is coming from furnace side. 
         ** Once W relay is pulled in, keep it in for a while to prevent chatter */
-        const auto now = millis();
         static bool relayIsOn(false);
         static auto onAtTime(now);
         const unsigned long MINIMUM_ON_MSEC = 60000L;
