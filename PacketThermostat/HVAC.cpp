@@ -461,12 +461,15 @@ protected:
      }
 
     void loop(msec_time_stamp_t now) override
-    {   
-        if (isSensorTimedOut(now))
-           fancoilState = STATE_OFF;
+    { 
         // is it time to move to a later stage?
         if (fancoilState != STATE_OFF)
         {
+            if (isSensorTimedOut(now))
+            {
+                fancoilState = STATE_OFF;
+                return;
+            }
             int32_t sinceStage1 = now - timeEnteredStage1;
             if (sinceStage1 >= settingsFromEeprom.SecondsToThirdStage * 1000l)
             {
@@ -751,10 +754,13 @@ protected:
     }
     void loop(msec_time_stamp_t now) override
     {
-        if (isSensorTimedOut(now))
-           heatState = HEAT_OFF;
         if (heatState != HEAT_OFF)
         {
+            if (sensorIsTimedOut(now))
+            {
+                heatState = HEAT_OFF;
+                return;
+            }
             int32_t sinceStage1 = now - timeEnteredStage1;
             if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToThirdStage * 1000l)
             {
