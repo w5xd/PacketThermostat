@@ -756,7 +756,7 @@ protected:
     {
         if (heatState != HEAT_OFF)
         {
-            if (sensorIsTimedOut(now))
+            if (isSensorTimedOut(now))
             {
                 heatState = HEAT_OFF;
                 return;
