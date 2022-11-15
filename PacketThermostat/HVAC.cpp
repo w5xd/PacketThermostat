@@ -449,9 +449,22 @@ protected:
         }
         return false;
     }
+    
+    bool isSensorTimedOut(msec_time_stamp_t now)
+    {
+        bool ret = now - lastHeardFromSensor > (settingsFromEeprom.SecondsToThirdStage * 2000l);
+        if (ret) {
+            previousActual = 0;
+            TurnFurnaceOff();
+            }
+        return ret;
+     }
 
     void loop(msec_time_stamp_t now) override
-    {   // is it time to move to a later stage?
+    {   
+        if (isSensorTimedOut(now))
+           fancoilState = STATE_OFF;
+        // is it time to move to a later stage?
         if (fancoilState != STATE_OFF)
         {
             int32_t sinceStage1 = now - timeEnteredStage1;
@@ -738,6 +751,8 @@ protected:
     }
     void loop(msec_time_stamp_t now) override
     {
+        if (isSensorTimedOut(now))
+           heatState = HEAT_OFF;
         if (heatState != HEAT_OFF)
         {
             int32_t sinceStage1 = now - timeEnteredStage1;
