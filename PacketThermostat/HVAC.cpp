@@ -327,8 +327,10 @@ protected:
             const char* p = cmd;
             const char* q = FAN_CMD;
             while (*q)
-                if (toupper(*p++) != *q++)
+                if (toupper(*p++) != *q)
                     break;
+                else q++;
+                
             if (!*q) // matched
             {
                 fanIsOn = toupper(*p) == 'N';
