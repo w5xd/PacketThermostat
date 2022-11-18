@@ -931,9 +931,9 @@ namespace Furnace {
         }
 
         // Activate hardware relay if input W doesn't match output W
-        mask &= ~(1 << BN_W_FAILSAFE); // hardware relay to be off
+        //mask &= ~(1 << BN_W_FAILSAFE); // hardware relay already off
         
-        /* But deal with possibility that W signal is coming from furnace side. 
+        /* Deal with possibility that W signal is coming from furnace side. 
         ** Once W relay is pulled in, keep it in for a while to prevent chatter */
         static bool relayIsOn(false);
         static auto onAtTime(now);
