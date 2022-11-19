@@ -399,7 +399,7 @@ protected:
 #endif
         if (settingsFromEeprom.SensorMask & mask)
         {   // if we're configured to use this sensor
-            auto now = millis();
+            const auto now = millis();
             if (lastHeardSensorId > 0 &&
                 (senderid > lastHeardSensorId) &&
                 (static_cast<msec_time_stamp_t>(now - lastHeardFromSensor) < SENSOR_TIMEOUT_MSEC))
@@ -448,14 +448,20 @@ protected:
             if (fanIsOn)
                 output |= settingsFromEeprom.MaskFanOnly;
             Furnace::UpdateOutputs(output);
+            return true;
         }
         return false;
     }
     
     bool isSensorTimedOut(msec_time_stamp_t now)
     {
-        bool ret = now - lastHeardFromSensor > (settingsFromEeprom.SecondsToThirdStage * 2000l);
+        long interval = now - lastHeardFromSensor; // can (and will!) be negative first time through
+        bool ret = interval > (settingsFromEeprom.SecondsToThirdStage * 2000l);
         if (ret) {
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+            Serial.print("Sensor timed out! ");
+            Serial.println(interval);
+#endif
             previousActual = 0;
             TurnFurnaceOff();
             }

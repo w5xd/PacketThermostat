@@ -1116,7 +1116,7 @@ void setup()
 
 void loop()
 {   wdt_reset();
-    auto now = millis();
+    const auto now = millis();
     static_assert(sizeof(now) == sizeof(msec_time_stamp_t), "msec_time_stamp_t must match type of millis()");
     auto previousInputRegister = InputRegister;
     auto previousOutputRegister = OutputRegister;
