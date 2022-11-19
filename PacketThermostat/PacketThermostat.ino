@@ -1,4 +1,4 @@
-/* (c) 2021 by Wayne E. Wright, Round Rock, Texas, USA
+/* (c) 2022 by Wayne E. Wright, Round Rock, Texas, USA
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this packet thermostat software and associated documentation files 
@@ -911,7 +911,8 @@ namespace Furnace {
 
         if (HeatSafetyOffTimeActive)
             mask &= HeatSafetyShutoffMask;
-
+        const auto now = millis();
+        
         // check compressor short cycling logic
         uint8_t compressorMask = getCompressorMask();
         if (!CompressorOffTimeActive && compressorMask != 0xff)
@@ -921,7 +922,7 @@ namespace Furnace {
             if (compressorWasOn && compressorToBeOff)
             {   // this command is turning the compressor off
                 CompressorOffTimeActive = true;
-                CompressorOffStartTime = millis();
+                CompressorOffStartTime = now;
             }
         }
         if (CompressorOffTimeActive)
@@ -929,9 +930,19 @@ namespace Furnace {
             mask &= ~compressorMask; // ensure compressors not turned on
         }
 
-        // Activate hardware relay only if input W doesn't match output W
-        mask &= ~(1 << BN_W_FAILSAFE); // hardware relay to be off
-        if (((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0)
+        // Activate hardware relay if input W doesn't match output W
+        //mask &= ~(1 << BN_W_FAILSAFE); // hardware relay already off
+        
+        /* Deal with possibility that W signal is coming from furnace side. 
+        ** Once W relay is pulled in, keep it in for a while to prevent chatter */
+        static bool relayIsOn(false);
+        static auto onAtTime(now);
+        const unsigned long MINIMUM_ON_MSEC = 60000L;
+        
+        if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC)) ||
+            ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
+                (onAtTime = now, relayIsOn = true) //assignments
+            )) 
             mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
 
         OutputRegister = mask;
@@ -1105,7 +1116,7 @@ void setup()
 
 void loop()
 {   wdt_reset();
-    auto now = millis();
+    const auto now = millis();
     static_assert(sizeof(now) == sizeof(msec_time_stamp_t), "msec_time_stamp_t must match type of millis()");
     auto previousInputRegister = InputRegister;
     auto previousOutputRegister = OutputRegister;

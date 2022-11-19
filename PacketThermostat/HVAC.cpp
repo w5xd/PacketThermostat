@@ -327,8 +327,10 @@ protected:
             const char* p = cmd;
             const char* q = FAN_CMD;
             while (*q)
-                if (toupper(*p++) != *q++)
+                if (toupper(*p++) != *q)
                     break;
+                else q++;
+                
             if (!*q) // matched
             {
                 fanIsOn = toupper(*p) == 'N';
@@ -397,7 +399,7 @@ protected:
 #endif
         if (settingsFromEeprom.SensorMask & mask)
         {   // if we're configured to use this sensor
-            auto now = millis();
+            const auto now = millis();
             if (lastHeardSensorId > 0 &&
                 (senderid > lastHeardSensorId) &&
                 (static_cast<msec_time_stamp_t>(now - lastHeardFromSensor) < SENSOR_TIMEOUT_MSEC))
@@ -446,14 +448,36 @@ protected:
             if (fanIsOn)
                 output |= settingsFromEeprom.MaskFanOnly;
             Furnace::UpdateOutputs(output);
+            return true;
         }
         return false;
     }
+    
+    bool isSensorTimedOut(msec_time_stamp_t now)
+    {
+        long interval = now - lastHeardFromSensor; // can (and will!) be negative first time through
+        bool ret = interval > (settingsFromEeprom.SecondsToThirdStage * 2000l);
+        if (ret) {
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+            Serial.print("Sensor timed out! ");
+            Serial.println(interval);
+#endif
+            previousActual = 0;
+            TurnFurnaceOff();
+            }
+        return ret;
+     }
 
     void loop(msec_time_stamp_t now) override
-    {   // is it time to move to a later stage?
+    { 
+        // is it time to move to a later stage?
         if (fancoilState != STATE_OFF)
         {
+            if (isSensorTimedOut(now))
+            {
+                fancoilState = STATE_OFF;
+                return;
+            }
             int32_t sinceStage1 = now - timeEnteredStage1;
             if (sinceStage1 >= settingsFromEeprom.SecondsToThirdStage * 1000l)
             {
@@ -740,6 +764,11 @@ protected:
     {
         if (heatState != HEAT_OFF)
         {
+            if (isSensorTimedOut(now))
+            {
+                heatState = HEAT_OFF;
+                return;
+            }
             int32_t sinceStage1 = now - timeEnteredStage1;
             if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToThirdStage * 1000l)
             {
