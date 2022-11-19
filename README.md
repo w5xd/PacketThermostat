@@ -180,4 +180,7 @@ refuses to proceed past the compile step if the compile results in a sketch too 
 even if you specify to use a programmer (which means there is no bootloader.)
 The only way I could find to get around this nuisance was
 to track down the boards.txt file and add a new "board" that was copied from the 
-existing Sparkfun Pro Micro board setting. This is left as an exercise to the reader. 
+existing Sparkfun Pro Micro board setting. This is left as an exercise to the reader, but with this hint:
+<a href='https://forum.arduino.cc/t/removing-bootloader-atmega32u4/598120/2'>https://forum.arduino.cc/t/removing-bootloader-atmega32u4/598120/2</a>.
+Do not overlook the comment that avrdude must be run twice: once to upload the sketch, and again without the hex file
+but with this command line parameter to update the bootloader fuse: <code>-U hfuse:w:0xDF:m</code>
