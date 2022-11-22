@@ -616,7 +616,7 @@ namespace
             p += 4;
         }
 
-        *p++ = 'T'; *p++ = 'M';  *p++ = ':';
+        *p++ = 'M';  *p++ = ':';
         itoa(hvac->TypeNumber(), p, 10);
         p += strlen(p);
         *p++ = ':';
