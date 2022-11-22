@@ -616,8 +616,9 @@ namespace
             p += 4;
         }
 
-        *p++ = 'S';  *p++ = ':'; *p++ = '0' + hvac->TypeNumber();
-        *p++ = ':';              *p++ = '0' + hvac->ModeNumber();
+        *p++ = 'S';  
+        *p++ = ':'; *p++ = '0' + hvac->TypeNumber();
+        *p++ = ':'; *p++ = '0' + hvac->ModeNumber();
         *p++ = ':'; *p++ = ThermostatCommon::fanContinuous();
         *p++ = 0;
 
