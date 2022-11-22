@@ -711,7 +711,9 @@ protected:
         EEPROM.get(addr, settingsFromEeprom);
         return addr + sizeof(settingsFromEeprom);
     }
-    void InitializeState() override { dehumidifyState = DEHUMDIFY_OFF; }
+    void InitializeState() override { 
+        OverrideAndDriveFromSensors::InitializeState();
+        dehumidifyState = DEHUMDIFY_OFF; }
     enum {DEHUMDIFY_OFF, DEHUMIDIFY_ACTIVE} dehumidifyState;
     static Settings settingsFromEeprom;
 };
@@ -728,6 +730,13 @@ public:
         uint8_t HeatMaskStage3; // and Stage 3
     };
 protected:
+    bool OnReceivedTemperatureInput(int16_t degCx10) override
+    {
+        auto ret = HvacCool::OnReceivedTemperatureInput(degCx10);
+        if (ret)
+            autoTarget = OverrideAndDriveFromSensors::settingsFromEeprom.TemperatureTargetDegreesCx10;
+        return ret;
+    }
     uint8_t OnReceivedTemperatureInput2(int16_t degCx10, uint8_t mask) override
     {
         bool needHeat = 
@@ -736,20 +745,24 @@ protected:
                  : degCx10 < settingsFromEeprom.TemperatureTargetHeatDegreesCx10;
         if (!needHeat)
             heatState = HEAT_OFF;
-        else if (heatState == HEAT_OFF)
+        else 
         {
-            heatState = HEAT_STAGE1;
-            mask = settingsFromEeprom.HeatMaskStage1;
-            timeEnteredStage1 = millis();
-        } else
-        {
-            int32_t sinceStage1 = millis() - timeEnteredStage1;
-            if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToThirdStage * 1000l)
-                mask = settingsFromEeprom.HeatMaskStage3;
-            else if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToSecondStage * 1000l)
-                mask = settingsFromEeprom.HeatMaskStage2;
-            else
+            autoTarget = settingsFromEeprom.TemperatureTargetHeatDegreesCx10;
+            if (heatState == HEAT_OFF)
+            {
+                heatState = HEAT_STAGE1;
                 mask = settingsFromEeprom.HeatMaskStage1;
+                timeEnteredStage1 = millis();
+            } else
+            {
+                int32_t sinceStage1 = millis() - timeEnteredStage1;
+                if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToThirdStage * 1000l)
+                    mask = settingsFromEeprom.HeatMaskStage3;
+                else if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToSecondStage * 1000l)
+                    mask = settingsFromEeprom.HeatMaskStage2;
+                else
+                    mask = settingsFromEeprom.HeatMaskStage1;
+            }
         }
         return mask;
     }
@@ -790,6 +803,12 @@ protected:
         else 
             HvacCool::loop(now);
     }    
+    bool GetTargetAndActual(int16_t& targetCx10, int16_t& actualCx10) override
+    {
+        targetCx10 = autoTarget;
+        actualCx10 = previousActual;
+        return true;
+    }
     bool ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid, bool toMe) override
     {
         if (HvacCool::ProcessCommand(cmd, len, senderid, toMe))
@@ -846,10 +865,13 @@ protected:
     }
 
     void InitializeState() override {
+        HvacCool::InitializeState();
         heatState = HEAT_OFF;
+        autoTarget = settingsFromEeprom.TemperatureTargetHeatDegreesCx10;
     }
     enum {HEAT_OFF, HEAT_STAGE1, HEAT_STAGE2, HEAT_STAGE3} heatState;
     static Settings settingsFromEeprom;
+    static int16_t autoTarget;
 };
 #endif
 namespace
@@ -1104,6 +1126,8 @@ bool OverrideAndDriveFromSensors::fanIsOn;
 uint16_t OverrideAndDriveFromSensors::previousActual = 0;
 
 HvacCool::Settings HvacCool::settingsFromEeprom;
+
 #if HVAC_AUTO_CLASS
 HvacAuto::Settings HvacAuto::settingsFromEeprom;
+int16_t HvacAuto::autoTarget;
 #endif
