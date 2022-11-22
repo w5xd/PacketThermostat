@@ -31,6 +31,7 @@ public:
     virtual void loop(msec_time_stamp_t now) = 0;
     uint8_t TypeNumber() const { return MyTypeNumber; }
     uint8_t ModeNumber() const { return MyModeNumber; }
+    static char fanContinuous();
 protected:
     static uint8_t MyTypeNumber;
     static uint8_t MyModeNumber;

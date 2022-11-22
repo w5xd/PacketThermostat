@@ -305,6 +305,8 @@ public:
         uint16_t SecondsToThirdStage;
     };
 
+    static bool fanContinuous() { return fanIsOn; }
+
 protected:
     void OnInputsChanged(uint8_t inputs, uint8_t previous) override  { return;} // ignore inputs
     void TurnFurnaceOff() override { Furnace::UpdateOutputs(settingsFromEeprom.AlwaysOnMask); }
@@ -1115,6 +1117,7 @@ HvacCommands::Settings HvacCommands::settingsFromEeprom = {
 
 uint8_t ThermostatCommon::MyModeNumber;
 uint8_t ThermostatCommon::MyTypeNumber;
+char ThermostatCommon::fanContinuous() { return MyModeNumber >= static_cast<int>(HVAC_HEAT) ? (OverrideAndDriveFromSensors::fanContinuous() ? '1' : '0') : '-' ; }
 MapInputToOutput::Settings MapInputToOutput::settingsFromEeprom;
 
 OverrideAndDriveFromSensors::Settings OverrideAndDriveFromSensors::settingsFromEeprom;
