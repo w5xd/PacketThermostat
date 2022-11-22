@@ -616,11 +616,9 @@ namespace
             p += 4;
         }
 
-        *p++ = 'M';  *p++ = ':';
-        itoa(hvac->TypeNumber(), p, 10);
-        p += strlen(p);
-        *p++ = ':';
-        itoa(hvac->ModeNumber(), p, 10);
+        *p++ = 'S';  *p++ = ':'; *p++ = '0' + hvac->TypeNumber();
+        *p++ = ':';              *p++ = '0' + hvac->ModeNumber();
+        *p++ = 0;
 
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
