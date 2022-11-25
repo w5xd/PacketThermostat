@@ -596,28 +596,31 @@ namespace
     void radioTemperatureReport(int16_t TinletCx10, int16_t tOutletCx10, int16_t tOutsideCx10)
     {
         char *p = &reportbuf[0];
-        p = formatTemperature(p, degreesCx10fromLM235ADCx64(TinletCx10), 'i');
-        *p++ = ' ';
-        p = formatTemperature(p, degreesCx10fromLM235ADCx64(tOutletCx10), 'o');
-        *p++ = ' ';
-        p = formatTemperature(p, degreesCx10FromC7089ADC(tOutsideCx10), 's');
-        *p++ = ' ';
+        p = formatTemperature(p, degreesCx10fromLM235ADCx64(TinletCx10), 'i'); // 7 characters
+        *p++ = ' ';                                                             // 8
+        p = formatTemperature(p, degreesCx10fromLM235ADCx64(tOutletCx10), 'o'); // 15
+        *p++ = ' ';                                                             // 16
+        p = formatTemperature(p, degreesCx10FromC7089ADC(tOutsideCx10), 's');   // 23
+        *p++ = ' ';                                                             // 24
         int16_t t; int16_t a;
         if (hvac->GetTargetAndActual(t, a))
         {
-            p = formatTemperature(p, t, 't');
-            *p++ = ' ';
-            p = formatTemperature(p, a, 'a');
-            *p++ = ' ';
+            p = formatTemperature(p, t, 't');                                  // 31
+            *p++ = ' ';                                                       // 32
+            p = formatTemperature(p, a, 'a');                                 // 39
+            *p++ = ' ';                                                       // 40
         }
         else 
         {
             strcpy(p, "0 0 ");
             p += 4;
         }
-        rtc.updateTime();
-        auto q = rtc.stringTime8601();
-        while (*p++ = *q++);
+
+        *p++ = 'S';  
+        *p++ = ':'; *p++ = '0' + hvac->TypeNumber();
+        *p++ = ':'; *p++ = '0' + hvac->ModeNumber();
+        *p++ = ':'; *p++ = ThermostatCommon::fanContinuous();
+        *p++ = 0;
 
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
