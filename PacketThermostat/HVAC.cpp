@@ -1117,7 +1117,7 @@ HvacCommands::Settings HvacCommands::settingsFromEeprom = {
 
 uint8_t ThermostatCommon::MyModeNumber;
 uint8_t ThermostatCommon::MyTypeNumber;
-char ThermostatCommon::fanContinuous() { return MyModeNumber >= static_cast<int>(HVAC_HEAT) ? (OverrideAndDriveFromSensors::fanContinuous() ? '1' : '0') : '-' ; }
+char ThermostatCommon::fanContinuous() { return MyTypeNumber >= static_cast<int>(HVAC_HEAT) ? (OverrideAndDriveFromSensors::fanContinuous() ? '1' : '0') : '-' ; }
 MapInputToOutput::Settings MapInputToOutput::settingsFromEeprom;
 
 OverrideAndDriveFromSensors::Settings OverrideAndDriveFromSensors::settingsFromEeprom;
