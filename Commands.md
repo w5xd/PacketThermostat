@@ -134,8 +134,8 @@ For EXAMPLE, to set the thermostat COOL type with typical mapping of PCB to ther
                  300     hex. use sensors 8 and 9
                   10     hex. The Fan is the G wire, mapped to Z1
                   04     hex. Keep the O output, mapped to X1, always ON
-                  08     hex. Stages 1, 2 and 3 are all Y output, mapped to X2
-                   1     decimal. Seconds to stages 2 and 3 are unimportant, 1 second each
+                  08 08 08     hex. Stages 1, 2 and 3 are all Y output, mapped to X2
+                   1  1        decimal. Seconds to stages 2 and 3 are unimportant, 1 second each
      HVAC_SETTINGS 206 211 300 10 04 08 08 08 1 1
 </pre> Leading zeros as shown above are allowed but are not required.
  Any or all of the values after the &lt;target temperature Cx10&gt; may be omitted. If the 

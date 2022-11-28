@@ -70,7 +70,6 @@ namespace {
     uint8_t MASK_B = 0;
 
     int doConfigure(PacketThermostat::SerialPort &, int argc, char **argv);
-    int doSetMode(PacketThermostat::SerialPort &, int argc, char **argv);
 }
 
 struct WaitFailed : public std::runtime_error
@@ -82,9 +81,9 @@ struct WaitFailed : public std::runtime_error
 int main(int argc, char **argv)
 {
     static const char *USAGE1 = 
-        "usage: PacketThermostatSettings <COMMPORT> <[CONFIGURE] | [SETMODE [PASS | NOHP | HEAT | COOL | EHEAT] <TEMPERATURE F>]> ";
+        "usage: PacketThermostatSettings <COMMPORT> [CONFIGURE] ";
     static const char *USAGE2 = 
-        "COMMPORT for CONFIGURE is the thermostat. COMMPORT for SETMODE is PacketGateway";
+        "COMMPORT for CONFIGURE is the thermostat.";
     if (argc < 3)
     {
         std::cerr << USAGE1 << std::endl;
@@ -107,8 +106,6 @@ int main(int argc, char **argv)
     try {
         if (cmdUpper == "CONFIGURE")
             return doConfigure(sp, argc, argv);
-        else if (cmdUpper == "SETMODE")
-            return doSetMode(sp, argc, argv);
     }
     catch (const WaitFailed &e)
     {
@@ -187,7 +184,6 @@ namespace {
              MASK_O = 0;
          }
      }
-
 
     // name the wires
     DoCommandAndWait(wireNames, sp);
@@ -367,28 +363,6 @@ namespace {
     }
 
     return 0;
-}
-
- int doSetMode(PacketThermostat::SerialPort &sp, int argc, char **argv)
-{
-    if (argc < 4)
-        return 1;
-    std::string mode;
-    const char *p = argv[3];
-    while (*p)
-        mode.push_back(toupper(*p++));
-    if (mode == "PASS")
-    {
-        sp.Write("SendMessageToNode " FURNACE_NODEID " HVAC TYPE=0 MODE=0\r");
-        return 0;
-    } else if (mode == "NOHP")
-    {
-        sp.Write("SendMessageToNode " FURNACE_NODEID " HVAC TYPE=1 MODE=0\r");
-        return 0;
-    } else
-        std::cerr << "Unknown SETMODE command: " << argv[3] << std::endl;
-
-    return 1;
 }
 
 }
