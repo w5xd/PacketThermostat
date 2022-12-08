@@ -35,7 +35,9 @@ THE SOFTWARE.
 #include <memory>
 #include <sstream>
 #include <iomanip>
+#include <functional>
 #include <stdexcept>
+#include <algorithm>
 
 #include <PacketThermostat/PcbSignalDefinitions.h>
 #ifdef WIN32
@@ -43,6 +45,58 @@ THE SOFTWARE.
 #else
 #include "SerialPortLinux.h"
 #endif
+#ifdef min 
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+
+class SerialWrapper {
+public:
+    SerialWrapper() : m_readState(0)
+    {
+        m_write = [] (const std::string &s)
+        {
+            std::cout << s << std::endl;
+            return true;
+        };
+        m_read = [this] (unsigned char* buf, unsigned len, unsigned* bytesRead)
+        {
+            if (m_readState == 0)
+            {
+                static const char READY[] = "ready>";
+                strncpy_s(reinterpret_cast<char*>(buf), len, READY, len-1);
+                *bytesRead = std::min(len, static_cast<unsigned>(sizeof(READY) / sizeof(READY[0])));
+            }
+            else
+                *bytesRead = 0;
+            m_readState = m_readState == 0 ? 1 : 0;
+            return true;
+        };
+    }
+    SerialWrapper(std::unique_ptr<PacketThermostat::SerialPort> &sp) : m_readState(0)
+    {
+        m_sp = std::move(sp);
+        // The Write method is overloaded, so std::bind needs some compile-time help
+        bool (PacketThermostat::SerialPort::*ptr)(const std::string &) = &PacketThermostat::SerialPort::Write;
+        m_write = std::bind(ptr, m_sp.get(), std::placeholders::_1);
+        m_read = std::bind(&PacketThermostat::SerialPort::Read, m_sp.get(), std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    }
+    bool Write(const std::string &s)
+    {
+        return m_write(s);
+    }
+    bool Read(unsigned char*buf, unsigned len, unsigned*bytesRead)
+    {
+        return m_read(buf, len, bytesRead);
+    }
+protected:
+    std::function<bool(const std::string &)> m_write;
+    std::function<bool(unsigned char* , unsigned , unsigned* )> m_read;
+    std::unique_ptr<PacketThermostat::SerialPort> m_sp;
+    int m_readState;
+};
 
 /* The mapping of PCB/sketch pins to thermostat signals here is five signals:
 ** X1 is  O is the compressor reversing valve, with "ON" calling for cool, OFF for heat.
@@ -55,9 +109,6 @@ THE SOFTWARE.
 ** R and C are 24VAC and common, respectively
 */ 
 
-// The furnace packet radio is on this Node ID
-#define FURNACE_NODEID "99"
-
 namespace {
     const uint8_t MASK_W = 1 << BN_W;
     const uint8_t MASK_Y = 1 << BN_X2;
@@ -69,7 +120,7 @@ namespace {
     uint8_t MASK_O = 1 << BN_X1; 
     uint8_t MASK_B = 0;
 
-    int doConfigure(PacketThermostat::SerialPort &, int argc, char **argv);
+    int doConfigure(SerialWrapper&, int argc, char **argv);
 }
 
 struct WaitFailed : public std::runtime_error
@@ -77,6 +128,7 @@ struct WaitFailed : public std::runtime_error
     WaitFailed(const std::string &e) : std::runtime_error(e)
     {}
 };
+
 
 int main(int argc, char **argv)
 {
@@ -90,12 +142,23 @@ int main(int argc, char **argv)
         std::cerr << USAGE2 << std::endl;
         return 1;
     }
-    static const int BAUD = 9600;
-    PacketThermostat::SerialPort sp(argv[1], BAUD);
-    if (sp.OpenCommPort() < 0)
+
+    std::unique_ptr<SerialWrapper> sp;
+
+    if (strcmp(argv[1],"-") == 0) // write commands to STDOUT instead of COM port
     {
-        std::cerr << "failed to open Serial Port" << std::endl;
-        return 1;
+        sp.reset(new SerialWrapper());
+    }
+    else
+    {
+        static const int BAUD = 9600;
+        std::unique_ptr<PacketThermostat::SerialPort> port(new PacketThermostat::SerialPort(argv[1], BAUD));
+        if (port->OpenCommPort() < 0)
+        {
+            std::cerr << "failed to open Serial Port" << std::endl;
+            return 1;
+        }
+        sp.reset(new SerialWrapper(port));
     }
 
     std::string cmdUpper;
@@ -105,7 +168,7 @@ int main(int argc, char **argv)
 
     try {
         if (cmdUpper == "CONFIGURE")
-            return doConfigure(sp, argc, argv);
+            return doConfigure(*sp.get(), argc, argv);
     }
     catch (const WaitFailed &e)
     {
@@ -123,7 +186,7 @@ int main(int argc, char **argv)
 
 namespace {
 
- void WaitForReady(const std::string &error, PacketThermostat::SerialPort &sp)
+ void WaitForReady(const std::string &error, SerialWrapper &sp)
 {   // the firmware on the packet thermostat sends "ready>" on its serial port after processing a command
     static const char SCAN_FOR_READY[] = "ready>";
     static const unsigned NUM_READ_LOOPS = 10;
@@ -151,7 +214,7 @@ namespace {
     throw WaitFailed(error);
 }
 
- void DoCommandAndWait(const std::string &cmd, PacketThermostat::SerialPort &sp)
+ void DoCommandAndWait(const std::string &cmd, SerialWrapper&sp)
 {
      for (int i = 0; i < 15; i++)
      {// this is just a timed delay
@@ -162,7 +225,7 @@ namespace {
      WaitForReady(cmd, sp);
 }
 
- int doConfigure(PacketThermostat::SerialPort &sp, int argc, char **argv)
+ int doConfigure(SerialWrapper&sp, int argc, char **argv)
 {
      std::string wireNames = "HV R Y2 G W d Y O";
      uint32_t sensorMask = 0;
@@ -289,7 +352,7 @@ namespace {
         heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat state 2 (same as stage 1)
         heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
         heatSettings << " " << std::dec << 10; // second stage matches 1, so short timeout
-        heatSettings << " " << std::dec << 20; // 3 stage matches 2, so short timeout
+        heatSettings << " " << std::dec << (60 * 20); // stage 2 timeout is ALSO used by thermostat to notice thermometer timeout: 20 minutes
         DoCommandAndWait(heatSettings.str(), sp);
     }
 
