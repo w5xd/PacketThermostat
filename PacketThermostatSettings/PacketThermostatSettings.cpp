@@ -79,9 +79,10 @@ public:
     {
         m_sp = std::move(sp);
         // The Write method is overloaded, so std::bind needs some compile-time help
-        bool (PacketThermostat::SerialPort::*ptr)(const std::string &) = &PacketThermostat::SerialPort::Write;
-        m_write = std::bind(ptr, m_sp.get(), std::placeholders::_1);
-        m_read = std::bind(&PacketThermostat::SerialPort::Read, m_sp.get(), std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+        m_write = std::bind(static_cast<bool (PacketThermostat::SerialPort:: *)(const std::string&)>(&PacketThermostat::SerialPort::Write), 
+            m_sp.get(), std::placeholders::_1);
+        m_read = std::bind(&PacketThermostat::SerialPort::Read, 
+            m_sp.get(), std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
     }
     bool Write(const std::string &s)
     {
