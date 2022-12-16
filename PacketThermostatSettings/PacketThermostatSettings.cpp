@@ -56,9 +56,10 @@ class SerialWrapper {
 public:
     SerialWrapper() : m_readState(0)
     {
-        m_write = [] (const std::string &s)
+        m_write = [this] (const std::string &s)
         {
             std::cout << s << std::endl;
+            m_readState = 0;
             return true;
         };
         m_read = [this] (unsigned char* buf, unsigned len, unsigned* bytesRead)
@@ -71,7 +72,7 @@ public:
             }
             else
                 *bytesRead = 0;
-            m_readState = m_readState == 0 ? 1 : 0;
+            m_readState = 1;
             return true;
         };
     }
@@ -134,13 +135,10 @@ struct WaitFailed : public std::runtime_error
 int main(int argc, char **argv)
 {
     static const char *USAGE1 = 
-        "usage: PacketThermostatSettings <COMMPORT> [CONFIGURE] ";
-    static const char *USAGE2 = 
-        "COMMPORT for CONFIGURE is the thermostat.";
+        "usage: PacketThermostatSettings [<COMMPORT> | - ] CONFIGURE -s <thermometer#1> -s <thermometer#2> ... -s <thermometer#n>";
     if (argc < 3)
     {
         std::cerr << USAGE1 << std::endl;
-        std::cerr << USAGE2 << std::endl;
         return 1;
     }
 
