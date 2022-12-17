@@ -906,6 +906,9 @@ const int HVAC_EEPROM_START = static_cast<int>(EepromAddresses::TOTAL_EEPROM_USE
 
 namespace Furnace {
     uint8_t LastOutputWrite;
+    bool wRelayIsOn(false);
+    msec_time_stamp_t relayonAtTime;
+    const unsigned long MINIMUM_W_ON_MSEC = 60000L;
 
     void UpdateOutputs(uint8_t mask)
     {
@@ -934,17 +937,14 @@ namespace Furnace {
         }
 
         // Activate hardware relay if input W doesn't match output W
-        //mask &= ~(1 << BN_W_FAILSAFE); // hardware relay already off
+        mask &= ~(1 << BN_W_FAILSAFE); 
         
         /* Deal with possibility that W signal is coming from furnace side. 
         ** Once W relay is pulled in, keep it in for a while to prevent chatter */
-        static bool relayIsOn(false);
-        static auto onAtTime(now);
-        const unsigned long MINIMUM_ON_MSEC = 60000L;
         
-        if ((relayIsOn && (now - onAtTime < MINIMUM_ON_MSEC)) ||
+        if ((wRelayIsOn && (wRelayIsOn = (now - relayonAtTime < MINIMUM_W_ON_MSEC))) ||
             ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
-                (onAtTime = now, relayIsOn = true) //assignments
+                (relayonAtTime = now, wRelayIsOn = true) //assignments
             )) 
             mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
 
@@ -974,6 +974,12 @@ namespace Furnace {
         uint8_t next = LastOutputWrite;
         next &= mask;
         UpdateOutputs(next);
+    }
+
+    void loop(msec_time_stamp_t now)
+    {
+        if (wRelayIsOn && (now - relayonAtTime >= MINIMUM_W_ON_MSEC))
+            SetOutputBits();
     }
 }
 
@@ -1199,7 +1205,6 @@ void loop()
         CompressorOffTimeActive = false;
         Furnace::SetOutputBits();
     }
-
     if (HeatSafetyOffTimeActive)
     {
         if ((now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
@@ -1374,9 +1379,9 @@ void loop()
         memset(reportbuf, 0, sizeof(reportbuf));
         memcpy(reportbuf, &radio.DATA[0], sizeof(radio.DATA));
         bool toMe = radioConfiguration.NodeId() == radio.TARGETID;
-        routeCommand(reportbuf, sizeof(radio.DATA), static_cast<uint8_t>(radio.SENDERID), toMe);
         if (toMe && radio.ACKRequested())
             radio.sendACK();
+        routeCommand(reportbuf, sizeof(radio.DATA), static_cast<uint8_t>(radio.SENDERID), toMe);
 #if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("FromRadio: \""));
         Serial.print(reportbuf);
@@ -1388,6 +1393,7 @@ void loop()
     }
 
     hvac->loop(now);
+    Furnace::loop(now);
 
     if (LCD::reinit)
     {   // the LCD display seems to get out of sync. Force a full update of it occasionally
