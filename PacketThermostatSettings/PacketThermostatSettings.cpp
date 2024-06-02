@@ -104,6 +104,7 @@ protected:
 ** X1 is  O is the compressor reversing valve, with "ON" calling for cool, OFF for heat.
 ** W  is  W, the furnace
 ** X2 is  Y, the (only or stage 1) compressor
+** X3 is aux fan. 
 ** Z1  is G, the fan
 ** Z2 is  Y2, the stage 2 compressor
 ** ZX is DH, dehumidify
@@ -117,6 +118,7 @@ namespace {
     const uint8_t MASK_Y2 = 1 << BN_Z2;
     const uint8_t MASK_G = 1 << BN_Z1;
     const uint8_t MASK_DH = 1 << BN_ZX;
+    const uint8_t MAX_AUXFAN = 1 << BN_X3; // aux or booster fan output. 
 
     // The default for this program is to support the O wire reversing valve logic. Command line -B switches to B wire logic.
     uint8_t MASK_O = 1 << BN_X1; 
@@ -226,7 +228,7 @@ namespace {
 
  int doConfigure(SerialWrapper&sp, int argc, char **argv)
 {
-     std::string wireNames = "HV R Y2 G W d Y O";
+     std::string wireNames = "HV R Y2 G W d Y O x";
      uint32_t sensorMask = 0;
      for (int i = 0; i < argc; i++)
      {   // scan command line for -s
@@ -241,7 +243,7 @@ namespace {
          }
          else if (strcmp(argv[i], "-B") == 0)
          {
-             wireNames = "HV R Y2 G W d Y B";
+             wireNames = "HV R Y2 G W d Y B x";
              MASK_B = 1 << BN_X1;
              MASK_O = 0;
          }
@@ -266,7 +268,7 @@ namespace {
     DoCommandAndWait("HVAC COMMIT", sp);
 
     // mapping mode to disable heat pump****************************************************
-    DoCommandAndWait("HVAC TYPE=1 COUNT=1", sp);    // set up a mapping mode 
+    DoCommandAndWait("HVAC TYPE=1 COUNT=2", sp);    // set up a mapping mode 
     DoCommandAndWait("HVAC TYPE=1 MODE=0", sp); // switch to the newly created mode
     DoCommandAndWait("HVAC NAME=NoHP", sp); // name the mode NoHP
 
@@ -302,6 +304,34 @@ namespace {
     }
     DoCommandAndWait("HVAC COMMIT", sp); // into EEPROM on the Packet Thermostat
 
+        // mapping mode pass through plus AUX fan output ****************************************************
+    DoCommandAndWait("HVAC TYPE=1 MODE=1", sp); // switch to the newly created mode
+    DoCommandAndWait("HVAC NAME=PasG", sp); // name the mode PasG
+
+    for (unsigned i = 0; i < SIGNAL_COMBINATIONS; i++)
+    {
+        map[i] = i << 1; // initialize map to input to output. Shift-by-one cuz signals start one bit shifted left
+        uint8_t item = map[i];
+        const uint8_t AUX_FAN_ON_BITS = MASK_Y | MASK_Y2 | MASK_G | MASK_W;
+        if (0 != (item & AUX_FAN_ON_BITS)) // detects compressor or furnace or fan?
+            map[i] |= MAX_AUXFAN;   // turn on aux fan
+    }
+
+    i = 0;
+    for (unsigned j = 0; j < 8; j++) // spread the map into 8 commands to limit buffer size to what fits
+    {
+        std::ostringstream oss;
+        oss << "HVACMAP=0x" << std::hex << i << " ";
+        for (int m = 7; m >= 0; m -= 1)
+        {
+            oss << std::hex << static_cast<int>(map[i++]);
+            if (m != 0)
+                oss << " ";
+        }
+        DoCommandAndWait(oss.str(), sp);
+    }
+    DoCommandAndWait("HVAC COMMIT", sp); // into EEPROM on the Packet Thermostat
+
     // HEAT mode
     DoCommandAndWait("HVAC TYPE=2 COUNT=2", sp);    // set up a mapping mode 
     DoCommandAndWait("HVAC TYPE=2 MODE=0", sp); // switch to the newly created mode
@@ -311,11 +341,11 @@ namespace {
         std::ostringstream heatSettings;
         heatSettings << "HVAC_SETTINGS 1 0"; // temperatures are 0.1C off, 0.0C on
         heatSettings << " " << std::hex << sensorMask;  // thermometer mask
-        heatSettings << " " << std::hex << (int)(MASK_G); // fan mask
+        heatSettings << " " << std::hex << (int)(MASK_G | MAX_AUXFAN); // fan mask
         heatSettings << " " << std::hex << (int)(MASK_B | MASK_DH); // always on (dehumidify--reverse logic)
-        heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_G | MASK_DH); // heat stage 1
-        heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_Y2 | MASK_G | MASK_DH); // heat state 2 
-        heatSettings << " " << std::hex << (int)(MASK_B | MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_G | MASK_DH | MAX_AUXFAN); // heat stage 1
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_Y2 | MASK_G | MASK_DH | MAX_AUXFAN); // heat state 2 
+        heatSettings << " " << std::hex << (int)(MASK_B | MASK_W | MASK_DH | MAX_AUXFAN); // heat stage 3 (switch to furnace only
 
         int secondsToStage2Heat = 60 * 15; // 15 minutes of stage 1 by default
         heatSettings << " " << std::dec << secondsToStage2Heat; // 
@@ -345,11 +375,11 @@ namespace {
         std::ostringstream heatSettings;
         heatSettings << "HVAC_SETTINGS 1 0"; // temperatures are 0.1C off, 0.0C on
         heatSettings << " " << std::hex << sensorMask;  // thermometer mask
-        heatSettings << " " << std::hex << (int)(MASK_G); // fan mask
+        heatSettings << " " << std::hex << (int)(MASK_G | MAX_AUXFAN); // fan mask
         heatSettings << " " << std::hex << (int)MASK_DH; // always on (dehumidify--reverse logic)
-        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 1
-        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat state 2 (same as stage 1)
-        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH); // heat stage 3 (switch to furnace only
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH | MAX_AUXFAN); // heat stage 1
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH | MAX_AUXFAN); // heat state 2 (same as stage 1)
+        heatSettings << " " << std::hex << (int)(MASK_W | MASK_DH | MAX_AUXFAN); // heat stage 3 (switch to furnace only
         heatSettings << " " << std::dec << 10; // second stage matches 1, so short timeout
         heatSettings << " " << std::dec << (60 * 20); // stage 2 timeout is ALSO used by thermostat to notice thermometer timeout: 20 minutes
         DoCommandAndWait(heatSettings.str(), sp);
@@ -366,11 +396,11 @@ namespace {
         std::ostringstream coolSettings;
         coolSettings << "HVAC_SETTINGS 400 410"; // temperatures are 40C off, 41C on
         coolSettings << " " << std::hex << sensorMask;  // thermometer mask
-        coolSettings << " " << std::hex << (int)(MASK_G); // fan mask
+        coolSettings << " " << std::hex << (int)(MASK_G | MAX_AUXFAN); // fan mask
         coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH); // always ON
-        coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH | MASK_Y | MASK_G); // cool stage 1
-        coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH | MASK_Y2 | MASK_Y | MASK_G); // cool stage 2 
-        coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH | MASK_Y2 | MASK_Y | MASK_G); // cool stage 3 
+        coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH | MASK_Y | MASK_G | MAX_AUXFAN); // cool stage 1
+        coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH | MASK_Y2 | MASK_Y | MASK_G | MAX_AUXFAN); // cool stage 2 
+        coolSettings << " " << std::hex << (int)(MASK_O | MASK_DH | MASK_Y2 | MASK_Y | MASK_G | MAX_AUXFAN); // cool stage 3 
         coolSettings << " " << std::dec << 1200; // stage 1 timeout. 20 minutes
         coolSettings << " " << std::dec << 9999; // 3 stage matches 2
         DoCommandAndWait(coolSettings.str(), sp);
