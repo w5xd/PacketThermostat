@@ -273,6 +273,7 @@ namespace {
     DoCommandAndWait("HVAC NAME=NoHP", sp); // name the mode NoHP
 
     static const int SIGNAL_COMBINATIONS = 1 << NUM_HVAC_INPUT_SIGNALS;
+    static const uint8_t AUX_FAN_ON_BITS = MASK_Y | MASK_Y2 | MASK_G | MASK_W;
     unsigned char map[SIGNAL_COMBINATIONS];
     for (unsigned i = 0; i < SIGNAL_COMBINATIONS; i++)
     {
@@ -287,6 +288,8 @@ namespace {
             map[i] &= ~COMPRESSOR_MASK; // turn off heat pump
             map[i] |= MASK_W;   // turn on furnace
         }
+        if (map[i] & AUX_FAN_ON_BITS)
+            map[i] |= MAX_AUXFAN;
     }
 
     unsigned i = 0;
@@ -312,7 +315,6 @@ namespace {
     {
         map[i] = i << 1; // initialize map to input to output. Shift-by-one cuz signals start one bit shifted left
         uint8_t item = map[i];
-        const uint8_t AUX_FAN_ON_BITS = MASK_Y | MASK_Y2 | MASK_G | MASK_W;
         if (0 != (item & AUX_FAN_ON_BITS)) // detects compressor or furnace or fan?
             map[i] |= MAX_AUXFAN;   // turn on aux fan
     }
