@@ -406,15 +406,15 @@ protected:
                 (senderid > lastHeardSensorId) &&
                 (static_cast<msec_time_stamp_t>(now - lastHeardFromSensor) < SENSOR_TIMEOUT_MSEC))
                 return true; // ignore lower priority sensor if higher one has checked in recently
-            lastHeardFromSensor = now;
-            lastHeardSensorId = senderid;
-
+ 
             // Example thermometers:
             //      C:49433, B:244, T:+20.37
             //      C:1769, B:198, T:+20.58 R:45.46
             int16_t tCx10 = parseForColon('T', cmd, len);
             if (tCx10 == -1)
                 return false;
+            lastHeardFromSensor = now;
+            lastHeardSensorId = senderid;
             int16_t rhx10 = parseForColon('R', cmd, len);
             auto prevState = fancoilState;
             uint8_t output = settingsFromEeprom.AlwaysOnMask;
@@ -519,15 +519,18 @@ protected:
                     neg = true;
                     p += 1;
                     c -= 1;
-                } else if (*p == '+')
+                } else if ((*p == '+') || (*p == ' '))
                 {
                     neg = false;
                     p += 1;
                     c -= 1;
                 }
-                ret = aDecimalToInt(p) * 10;
-                if (isdigit(*p))
+                if (!isdigit(*p))
+                    return -1;
+                ret = aDecimalToInt(p) * 10; // whole part of temperature
+                if (isdigit(*p))    // tenths of degree
                     ret += *p - '0';
+                // hundredths of a degree C is ignored
                 if (neg)
                     ret = -ret;
                 break;
