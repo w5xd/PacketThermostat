@@ -288,6 +288,7 @@ protected:
 };
 
 static const msec_time_stamp_t SENSOR_TIMEOUT_MSEC = 1000L * 60L * 15L; // 15 minutes
+static const int16_t PARSE_ERROR_RETURN = -9999;
 
 class OverrideAndDriveFromSensors : public HvacCommands
 {
@@ -411,7 +412,7 @@ protected:
             //      C:49433, B:244, T:+20.37
             //      C:1769, B:198, T:+20.58 R:45.46
             int16_t tCx10 = parseForColon('T', cmd, len);
-            if (tCx10 == -1)
+            if (tCx10 == PARSE_ERROR_RETURN)
                 return false;
             lastHeardFromSensor = now;
             lastHeardSensorId = senderid;
@@ -499,7 +500,6 @@ protected:
             }
         }
     }
-
     static int16_t parseForColon(char flag, const char* p, uint8_t len)
     {   // help parse the Wireless Thermometer packet
         int16_t ret(0);
@@ -507,9 +507,9 @@ protected:
         for (;;)
         {
             if (!*p)
-                return -1;
+                return PARSE_ERROR_RETURN;
             if (c == 0)
-                return -1;
+                return PARSE_ERROR_RETURN;
             if (p[0] == flag && p[1] == ':')
             {
                 p += 2;  c -= 2;
@@ -526,7 +526,7 @@ protected:
                     c -= 1;
                 }
                 if (!isdigit(*p))
-                    return -1;
+                    return PARSE_ERROR_RETURN;
                 ret = aDecimalToInt(p) * 10; // whole part of temperature
                 if (isdigit(*p))    // tenths of degree
                     ret += *p - '0';
