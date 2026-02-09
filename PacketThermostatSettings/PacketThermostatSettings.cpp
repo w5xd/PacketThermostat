@@ -349,10 +349,10 @@ namespace {
         heatSettings << " " << std::hex << (int)(MASK_B | MASK_Y | MASK_Y2 | MASK_G | MASK_DH | MAX_AUXFAN); // heat state 2 
         heatSettings << " " << std::hex << (int)(MASK_B | MASK_W | MASK_DH | MAX_AUXFAN); // heat stage 3 (switch to furnace only
 
-        int secondsToStage2Heat = 60 * 15; // 15 minutes of stage 1 by default
+        int secondsToStage2Heat = 60 * 18; // 18 minutes of stage 1 by default
         heatSettings << " " << std::dec << secondsToStage2Heat; // 
 
-        int secondsToStage3Heat = 60 * 5;
+        int secondsToStage3Heat = 60 * 10;
         for (int i = 0; i < argc; i++)
         {
             if (strcmp(argv[i], "-ss3") == 0)
