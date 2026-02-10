@@ -27,8 +27,8 @@ these nut slots on the enclosure bottom. Those 4 screws through the entire assem
 <p><a href='https://www.mouser.com/Tools/Project/Share?AccessID=1a8a35c924'>Here</a> is a Mouser shared project with all the parts except the PCB, enclosure, and hookup wire.
 
 <ol>
-<li> <a href='https://www.sparkfun.com/teensy-4-0.html'>Teensy 4.0</a>. (PCB versions prior to Version 4 use
-a different CPU: the Sparkfun Pro Micro.)
+<li> <a href='https://www.sparkfun.com/teensy-4-0.html'>Teensy 4.0</a>. Power is used solely from the 5V 
+power jack. <i><b>Before installing</b></i>, cut the back side VIN/VUSB jumper.
 </li>
 <li> <a href='https://www.sparkfun.com/products/16281'>SparkFun Real Time clock module, RV-8803</a> </li>
 <li> <a href='https://www.sparkfun.com/products/13909'>Sparkfun RFM69HCW packet radio module.</a></li>
@@ -110,9 +110,6 @@ has a jumper position to tie Rx to Rz.
 
 Firmware and initial test
 <ol>
-<li>For initial tests, do not plug in the 5VDC. Connect your PC to the micro-USB only, which will
-power the thermostat. While there is a blocking diode between the micro-USB
-power and the 5VDC connector, do not trust it to protect your PC if you plug both in at once.
 <li>Load the sketch on the Arduino using the Arduino IDE (or the software tool of your choice).
 <li>The packet radio won't function until you program its Network ID, Node ID, and Frequency Band into its 
 EEPROM. And if you're running your gateway
