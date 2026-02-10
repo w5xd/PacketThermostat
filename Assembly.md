@@ -1,7 +1,5 @@
 <h2>Printed Circuit Board</h2>
-The gerber files for REV03 PCB fabrication are <a href='PCB/REV03-Gerbers.zip'>here</a>. There
-are several updates in REV04 of <a href='PCB/thermostat remote.rrb'>PCB/thermostat remote.rrb</a> which 
-can only be fabricated by <a href='http://expresspcb.com'>expresspcb.com</a>.
+The gerber files for REV04 PCB fabrication are <a href='PCB/REV04-Gerbers.zip'>here</a>. 
 While there are some through-hole patterns on the PCB,
 many of the parts are available only SMD. A <a href='https://www.whizoo.com/controleo3'>Reflow Oven</a> makes PCB assembly
 faster and probably easier.
@@ -26,48 +24,44 @@ enter through the enclosure bottom and hold the entire assembly together.
 there are two more slots if you happen to find them, but you may safely ignore 
 these nut slots on the enclosure bottom. Those 4 screws through the entire assembly hold the PCB securely in place.)
 
-<p><a href='https://www.digikey.com/short/jwdbnhr7'>Here</a> is a Digikey parts list with all the parts except the PCB, enclosure, and hookup wire.
+<p><a href='https://www.mouser.com/Tools/Project/Share?AccessID=1a8a35c924'>Here</a> is a Mouser shared project with all the parts except the PCB, enclosure, and hookup wire.
 
 <ol>
-<li> <a href='https://www.sparkfun.com/products/12587'>SparkFun Pro Micro 3.3V Arduino</a>.<br/>
-<ol><li>Do <b><i>not</i></b> attempt to use the 5V version of the Arduino! The RFM69 radio is a 3.3V part only!</li>
-<li>When programming the Pro Micro using the Arduino IDE, pay
-attention to the fact you <b>must</b> specify the correct processor voltage in the Arduino IDE Tools/Processor menu. Programming at the wrong voltage bricks the
-Pro Micro such that it is difficult (although not impossible) to recover it. See Sparkfun's 
-<a href='https://learn.sparkfun.com/tutorials/pro-micro--fio-v3-hookup-guide/troubleshooting-and-faq#ts-revive'>page</a>.
-</li></ol></li>
+<li> <a href='https://www.sparkfun.com/teensy-4-0.html'>Teensy 4.0</a>. (PCB versions prior to Version 4 use
+a different CPU: the Sparkfun Pro Micro.)
+</li>
 <li> <a href='https://www.sparkfun.com/products/16281'>SparkFun Real Time clock module, RV-8803</a> </li>
 <li> <a href='https://www.sparkfun.com/products/13909'>Sparkfun RFM69HCW packet radio module.</a></li>
 <li> <a href='https://www.sparkfun.com/products/14417'>Sparkfun Qwiic SMD connector</a></li>
 <li> <a href='https://www.sparkfun.com/products/16396'>Sparkfun 16x2 SerLCD -RGB - Qwiic</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/omron-electronics-inc-emc-div/G3VM-61GR2/5810883'>G3VM-61GR2 Omron
+<li> <a href='https://www.mouser.com/new/omron-electronics/g3vm-vr-mosfet-relays/'>G3VM-61GR2 Omron
 Solid State Relay<a>. (Quantity: 7)</li>
-<li> <a href='https://www.digikey.com/en/products/detail/cit-relay-and-switch/J1031C5VDC-15S/14002065'>SPDT relay</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/vishay-semiconductor-opto-division/TCMT4600T0/4074845'>Quad 
+<li> <a href='https://www.mouser.com/datasheet/3/190/1/sy.pdf'>SPDT relay</a></li>
+<li> <a href='https://www.vishay.com/docs/83512/tcmt1600.pdf'>Quad 
 Optoisolator AC input, 4mm 16-SOP</a>. (Quantity: 2)</li>
-<li> <a href='https://www.digikey.com/en/products/detail/stmicroelectronics/LM334DT/1038704'>Current Source, 8-SOIC</a>, 4mm width. (Quantity: 3)
+<li> <a href='https://www.st.com/resource/en/datasheet/lm234.pdf'>LM334 Current Source, 8-SOIC</a>, 4mm width. (Quantity: 3)
 <br/>Pin 1 is on the beveled side of the LM334</li>
-<li> <a href='https://www.digikey.com/en/products/detail/diodes-incorporated/AZ1117IH-3-3TRG1/5699672'>3.3V regulator, SOT223</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/onsemi/MMBT100/3504512'>2n3904 (or equivalent) in SOT-23</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/texas-instruments/SN74HC594DR/1571252'>74hc594 shift register in 4mm width 16-SOIC </a></li>
+<li> <a href='https://www.mouser.com/datasheet/3/175/1/AZ1117I.pdf'>3.3V regulator, SOT223</a></li>
+<li> <a href='https://www.mouser.com/datasheet/3/101/1/MMBT100-D.PDF'>2n3904 (or equivalent) in SOT-23</a></li>
+<li> <a href='https://www.ti.com/lit/ds/symlink/sn74hc594.pdf'>74hc594 shift register in 4mm width 16-SOIC </a></li>
 <li> All resistors and capacitors on the PCB have dual SMD pads size 1206. Except the SMD for the 10uF polarized is 2312</li>
 <li> Use a 5VDC wall wart. Do not use anything higher than 6V!
 </ol>
-All of the Sparkfun products listed above are also in DigiKey's catalog. 
-Search Digikey.com for the Sparkfun product number (13909, 14417, or 16396).
-
+All of the Sparkfun products listed above are also in Mouser's catalog. 
+.
 Mechanical parts:
 <ol>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0003091091/26302'>9 pin Molex RECPT panel mount</a>.</li>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0003091094/61333'>9 pin Molex RECPT free hanging</a>. (Quantity: 2)</li>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0003092092/61309'>9 pin Molex PLUG free hanging</a>. (Quantity: 2)</li>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0469990653/5723549'>4 pin Molex RECPT panel mount</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0003092049/61303'>4 pin Molex PLUG</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0002092118/26388'>Molex PIN</a>. (Quantity: 22)</li>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0002091119/26390'>Molex SOCKET</a>. (Quantity: 22)</li>
-<li> <a href='https://www.digikey.com/en/products/detail/cui-devices/PJ-202A/252007'> PJ-202A 2MMx5.5MM kinked pin power jack</a></li>
-<li> <a href='https://www.digikey.com/en/products/detail/TSW-150-07-T-S/SAM1035-50-ND/1101574?itemSeq=320138980'>0.100 inch Connection headers</a>. (Quantity: 3)<br/>
-Use this specified header soldered both sides and without a socket to be sure the micro USB on the Pro Micro lines up with its hole in the enclosure</li>
+<li> <a href='https://www.digikey.com/en/products/detail/molex/0003091091/26302'>OBSOLETE. 9 pin Molex RECPT panel mount</a>. 
+Use the free hanging 9 pin RECPT, 3D print the panel mount attachments, and hot glue them.</li>
+<li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/03091094?display=pdf'>9 pin Molex 03091094 RECPT free hanging</a>. (Quantity: 2)</li>
+<li> <a href='hhttps://www.molex.com/en-us/products/part-detail-pdf/03092092?display=pdf'>9 pin Molex 03092092 PLUG free hanging</a>. (Quantity: 2)</li>
+<li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/469990653?display=pdf'>4 pin Molex 469990653 RECPT panel mount</a></li>
+<li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/03092049?display=pdf'>4 pin Molex 03092049 PLUG</a></li>
+<li> <a href='hhttps://www.molex.com/en-us/products/part-detail-pdf/02092118?display=pdf'>Molex 02-09-2118 PIN</a>. (Quantity: 22)</li>
+<li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/02091119?display=pdf'>Molex 02-09-1119 SOCKET</a>. (Quantity: 22)</li>
+<li> <a href='https://www.mouser.com/datasheet/3/6118/1/pj_202a.pdf'> PJ-202A 2MMx5.5MM kinked pin power jack</a></li>
+<li> <a href='https://www.mouser.com/datasheet/3/85/1/htsw_th.pdf'>Samtec TSW-150-07-T-S 0.100 inch Connection headers</a>. (Quantity: 3)<br/>
+Use this specified header soldered both sides and without a socket to be sure the micro USB on the CPU lines up with its hole in the enclosure</li>
 <li> <a href='https://www.sparkfun.com/products/17260'>50mm Qwiic cable</a>. (Quantity: 2)</li>
 </ol>
 The Molex quantities listed include (exactly enough) parts to populate the enclosure <i>and</i> one free hanging mating connector.
@@ -124,7 +118,7 @@ power and the 5VDC connector, do not trust it to protect your PC if you plug bot
 EEPROM. And if you're running your gateway
 encrypted, you have to specify the key. (By the way, the symptom if the encryption keys on this thermostat and
 the gateway do not match, is the packets are delivered anyway, but they are gibberish.)
-<li>On an out-of-the-box Pro Micro, the EEPROM comes will all bits set, which corresponds to no types 
+<li>On an out-of-the-box Arduino, the EEPROM comes will all bits set, which corresponds to no types 
 nor modes other than 
 Pass through per the below instructions. The commands here initialize the thermostat
 to pass-through mode. Use the Arduion IDE "Serial Monitor" function with 9600 baud set. The 

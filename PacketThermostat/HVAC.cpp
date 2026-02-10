@@ -406,7 +406,7 @@ protected:
             if (lastHeardSensorId > 0 &&
                 (senderid > lastHeardSensorId) &&
                 (static_cast<msec_time_stamp_t>(now - lastHeardFromSensor) < SENSOR_TIMEOUT_MSEC))
-                return true; // ignore lower priority sensor if higher one has checked in recently
+                return false; // ignore lower priority sensor if higher one has checked in recently
  
             // Example thermometers:
             //      C:49433, B:244, T:+20.37

@@ -1,5 +1,5 @@
 #pragma once
-class RFM69rawFrequency : public RFM69
+class RFM69rawFrequency : public ThermostatRFM69_t
 {
     // The baseclass getFrequency()/setFrequency methods use floating point to
     // get to precise Hz values. Those floating point routines cost a lot of
