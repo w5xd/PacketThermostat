@@ -2,9 +2,10 @@
 The gerber files for REV04 PCB fabrication are <a href='PCB/REV04-Gerbers.zip'>here</a>. 
 While there are some through-hole patterns on the PCB,
 many of the parts are available only SMD. A <a href='https://www.whizoo.com/controleo3'>Reflow Oven</a> makes PCB assembly
-faster and probably easier.
+faster and easier.
 Or if your hand is steady enough for 0.050" IC pin spacing, you can hand solder.
-<p style='margin-top:8px'>I had bad results reflow soldering with the RFM69 in place. Solder paste spreads under the module and shorts its vias. Its easier to hand solder it.</p>
+<p style='margin-top:8px'>I had bad results reflow soldering with the RFM69 in place. Solder paste spreads under the 
+module and shorts its vias. Its easier to hand solder it.</p>
 All parts mount on the PCB top.
 <p style='margin-top:8px'>The enclosure is 3D printable on common 3D printers. The printable STL files 
 are <a href="STL">here</a>. If instead you want to design a different enclosure, then you are welcome to start with the
@@ -48,11 +49,31 @@ Optoisolator AC input, 4mm 16-SOP</a>. (Quantity: 2)</li>
 <li> Use a 5VDC wall wart. Do not use anything higher than 6V!
 </ol>
 All of the Sparkfun products listed above are also in Mouser's catalog. 
-.
+
+|Quan|Item|Value|Form|
+|:-|:-|:-|:-|
+|1|C1|10µF|EIA 2312|
+|3|C2, C3, C4|.022µF|Chip EIA 1206 |
+|2|C5, C6|.01µF|Chip EIA 1206 |
+|3|CS2, CS3, CS4|LM334|SO8 208 mil 8S2|
+|1|D1|1N4148|EIA 1206 or  DO-35 (0.3 in hole spacing)|
+|1|J15|2.1 mm barrel jack PJ-202A|for power plug|
+|1|Q13|2N3904 or similar|SOT-23 or TO-92|
+|2|R1, R2|1K|EIA 1206|
+|3|R5, R6, R52|2.2K|EIA 1206|
+|7|R31, R32, R33, R34, R35, R36, R37|18K|EIA 1206|
+|7|R41, R42, R43, R44, R45, R46, R47|180|EIA 1206|
+|2|R50, R51|68|EIA 1206|
+|3|R53, R54, R55|10K|EIA 1206|
+|1|U2|74HC594|SOIC 16|
+|2|U3, U4|TCMT4600|SOP-16|
+|1|U5|AZ1117|SOT-223|
+|7|U11, U12, U13, U14, U15, U16, U17|G3VM-61GR2|SOP-4|
+
 Mechanical parts:
 <ol>
 <li> <a href='https://www.digikey.com/en/products/detail/molex/0003091091/26302'>OBSOLETE. 9 pin Molex RECPT panel mount</a>. 
-Use the free hanging 9 pin RECPT, 3D print the panel mount attachments, and hot glue them.</li>
+Use the free hanging 9 pin RECPT, 3D print the panel mount attachments, and use Gorilla glue double-sided tape.</li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/03091094?display=pdf'>9 pin Molex 03091094 RECPT free hanging</a>. (Quantity: 2)</li>
 <li> <a href='hhttps://www.molex.com/en-us/products/part-detail-pdf/03092092?display=pdf'>9 pin Molex 03092092 PLUG free hanging</a>. (Quantity: 2)</li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/469990653?display=pdf'>4 pin Molex 469990653 RECPT panel mount</a></li>

@@ -96,19 +96,21 @@ namespace {
 
 // custom library
 #include <RadioConfiguration.h>
+#include "Rfm69RawFrequency.h"
 #include "ThermostatCommon.h"
 
-#define VERSION_STRING "Rev 04" // This is the SKETCH version. Not the PCB version. This sketch supports all PCB versions
+// This is the SKETCH version. Not the PCB version. This sketch supports all PCB versions
+#define VERSION_STRING "Rev 04" 
+
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
 #define SCHEDULE_ENTRIES 1 // set to zero to remove this feature
 
 #if defined(F_CPU) && F_CPU > 200000000L
-class RFM69delayCanSend : public RFM69
+class RFM69delayCanSend : public RFM69rawFrequency
 {
 public:
-    RFM69delayCanSend(int nss, int irq) : RFM69(nss, irq, true)
-    {
-    }
+    RFM69delayCanSend(int nss, int irq) : RFM69rawFrequency(nss, irq)
+    {    }
 
     bool canSend() override
     {
@@ -123,9 +125,8 @@ public:
 };
 typedef RFM69delayCanSend ThermostatRFM69_t;
 #else
-typedef RFM69 ThermostatRFM69_t;
+typedef RFM69rawFrequency ThermostatRFM69_t;
 #endif
-#include "Rfm69RawFrequency.h"
 
 namespace LCD {
     const byte MODE_COLUMN = 0;
@@ -1088,10 +1089,13 @@ void setup()
     Serial.println(F("PacketThermostat " VERSION_STRING));
 #endif
 
+    // for multiple SPI devices, MUST turn EVERY device CS pin high before SPI.begin()
     digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
     pinMode(OUTREG_SPI_CS_PIN, OUTPUT);
     digitalWrite(RFM69_SPI_CS_PIN, HIGH);
     pinMode(RFM69_SPI_CS_PIN, OUTPUT);
+    // multiple SPI devices....
+
     displayLcdFarenheit = EEPROM.read(static_cast<int>(EepromAddresses::DISPLAY_UNITS_ADDRESS)) != 0;
 
     Wire.begin();
@@ -1156,7 +1160,7 @@ void setup()
     delay(1000);
     LCD::printBanner(radioSetupOK ? "Radio OK" : "Radio No Good");
 
-   // analogReference(DEFAULT); // 3.3V full scale at 10 bits, which is 1023
+ // analogReference(DEFAULT); 1023 bits on the 3.3V supply is default in both architectures
 
     pinMode(PCB_INPUT_X1_PIN, INPUT_PULLUP);
     pinMode(PCB_INPUT_X2_PIN, INPUT_PULLUP);
@@ -1215,7 +1219,7 @@ void loop()
                 *p++ = 0;
                 LCD::printTime(&reportbuf[0]);
                 printHvacTemperatures();
-                LCD::printCompressorHold(CompressorOffTimeActive ? "H" : "");
+                LCD::printCompressorHold(CompressorOffTimeActive ? "H" : " ");
             }
         }
     }
@@ -1223,26 +1227,30 @@ void loop()
 #if SCHEDULE_ENTRIES
     {   // check schedule slightly faster than once per minute
         const long SCEDULE_TIME_UPDATE_MSEC = 40000; // less than one minute
-        static unsigned long lastScheduleUpdate;
-        static_assert(sizeof(lastScheduleUpdate) == sizeof(now), "lastScheduleUpdate wrong size");
+        static auto lastScheduleUpdate = now;
         long diff = now - lastScheduleUpdate;
         if (diff > SCEDULE_TIME_UPDATE_MSEC)
         {
             lastScheduleUpdate = now;
             rtc.updateTime();
-            uint8_t hrs = rtc.getHours();
             uint8_t mins = rtc.getMinutes();
-            int weekday = rtc.getWeekday();
-            for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
-            {
-                auto se = getScheduleEntry(i);
-                if ((0 != ((int)se.DaysOfWeek & (1 << weekday))) &&
-                    hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
-                    mins == static_cast<uint8_t>(se.TimeOfDayMinute))
+            static auto prevMins = mins;
+            if (prevMins != mins)
+            {   // only process once for a given minute
+                uint8_t hrs = rtc.getHours();
+                int weekday = rtc.getWeekday();
+                for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
                 {
-                    setTemperatureCx10((int)se.degreesCx5 << 1, se.AutoMode);
-                    LCD::reinit = true;
+                    auto se = getScheduleEntry(i);
+                    if ((0 != ((int)se.DaysOfWeek & (1 << weekday))) &&
+                        hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
+                        mins == static_cast<uint8_t>(se.TimeOfDayMinute))
+                    {
+                        setTemperatureCx10((int)se.degreesCx5 << 1, se.AutoMode);
+                        LCD::reinit = true;
+                    }
                 }
+                prevMins = mins;
             }
         }
     }
