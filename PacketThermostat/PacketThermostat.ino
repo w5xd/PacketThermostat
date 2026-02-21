@@ -1,4 +1,4 @@
-/* (c) 2022 by Wayne E. Wright, Round Rock, Texas, USA
+/* (c) 2026 by Wayne E. Wright, Round Rock, Texas, USA
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this packet thermostat software and associated documentation files 
@@ -22,38 +22,34 @@ THE SOFTWARE. */
 
 /*
 ** 
-** Sketch for the Pro Micro in the packet thermostat with its associated printed circuit board.
+** Arduino Sketch for the packet thermostat using its associated printed circuit board.
 **
-** The packet thermostat is designed to intervene between an existing thermostat
-** and furnace. In bypass operation it passes all thermostat control signals unchanged
-** through to the furnace.
+** The packet thermostat is designed to intervene between an existing wall mounted,
+** user accessible thermostat when connected between it and its furnace & A/C. 
+** In pass-through operation it passes all thermostat control signals unchanged through to the furnace.
 **
 ** It accepts commands over its RFM69 packet radio that it uses to set into modes
-** that modify the 24VAC commands to the furnace. And it sends reports over the RFM69.
+** that modify the 24VAC communication between furnace/air condition and its thermostat.
+** And it sends reports over the RFM69.
 **
-** The PCB and sketch designs handle up to 6 wires of 24VAC controls. 
-** These 6 wires, for example, usually include W for heat, G for fan, Y for a compressor (either AC or heat pump)
-** O or B for a reversing valve. A multi-stage furnace, heat pump, and/or air conditioners each might add another wire.
+** The PCB and sketch designs handle up to 6 wires of 24VAC control inputs (from
+** the wall thermostat), and 7 control outputs (to the furnace & A/C). 
+** The 6 inputs, for example, usually include W for heat, G for fan, Y for a compressor (either AC or heat pump)
+** O or B for a reversing valve. A multi-stage furnace, heat pump, and/or air conditioners each might 
+** add another wire.
 **
-** "Communicating" thermostats are not supported.
-**
-** Some furnaces have a single 24VAC supply for both heat and cool, which is supplied to the thermostat
-** in the R wire, but others might have separate 24VAC for the two, which would usually be labeled Rc and Rh.
-** The PCB supports three outputs on one of the R supplies (labeled Rx) and two on the other (labeled Rz). Then
-** there are two more outputs with on-board jumpers to be placed on either Rx or Rz. The 24V power arrangement
-** affects only the necessary wiring of the PCB connectors and jumpers. This sketch is not affected by the
-** R wire 24VAC supply wiring.
-**
-** This PCB design requires a dedicated 5VDC power supply through its barrel connector.
+** "Communicating" thermostats, i.e., that do not have 24V AC wiring to the furnace, are not supported.
 **
 ** A Serial LCD display is supported via a qwiic connector. A calendar/clock (RTC) is also supported
-** on qwiic. This board does not support any user input except via the packet radio.
-** It has a micro-USB connector that is used to program the Arduino Pro Micro and help with debugging,
-** and to configure the EEPROM.
+** on qwiic. This board/sketch does not support any user input except via the packet radio and/or
+** Arduino serial port. It has a micro-USB connector that is used to program the Arduino 
+** and help with debugging, and to configure the EEPROM.
 **
-** The mapping between the generic signal names (X1, X2, Z1, Z2, ZX) and typical thermostat wire names
-** (O, B, Y, Y2, G) does not appear in this sketch. The only exceptions are these two wires:
-** The W wire is assumed to be the furnace wire and R is assumed to be 24VAC when power is on to the furnace.
+** The mapping between the generic signal names in this sketch/PCB (X1, X2, Z1, Z2, ZX) and typical 
+** thermostat wire names (O, B, Y, Y2, G) does not appear in this sketch. The only exceptions are 
+** these two wires:
+**      The W wire is assumed to be the furnace wire and 
+**      R is assumed to be the 24VAC supply from the furnace.
 **
 ** W is special. It is the one wire that the PCB passes through to the furnce when this PCB is turned off.
 ** That is, the heat function on the furnace still works, but no compressor.
@@ -75,16 +71,68 @@ THE SOFTWARE. */
 #include <EEPROM.h>
 #include <SerLCD.h>
 #include <SparkFun_RV8803.h>
+
+// VERSION_STRING is the SKETCH version. Not the PCB version. This sketch supports all PCB versions
+#define VERSION_STRING "Rev 06" 
+
+// This sketch has been tested ONLY on Sparkfun Pro Micro 8MHz and Teensy 4.0
+
+#if defined(ARDUINO_ARCH_AVR) // PCB versions up through 3 are Sparkfun Pro Micro
+/*This sketch with all options won't fit the Pro Micro unless you "upload with programmer" and
+** have no bootloader. https://forum.arduino.cc/t/removing-bootloader-atmega32u4/598120/2 */
 #include <avr/wdt.h>
+namespace {
+    void WATCHDOG_DISABLE() {
+        MCUSR &= ~(1 << WDRF); // https://github.com/baerwolf/USBaspLoader/issues/6
+            wdt_disable(); }
+    void WATCHDOG_ENABLE() {wdt_enable(WDTO_2S); }
+    void WATCHDOG_FEED() {wdt_reset();}
+}
+#elif defined(TEENSYDUINO) // PCB version 4 is a Teensy 4.0
+#include <Watchdog_t4.h> // https://github.com/tonton81/WDT_T4.git
+namespace {
+    WDT_T4<WDT1> wdt;
+    void WATCHDOG_ENABLE()
+    {   WDT_timings_t config;
+        config.timeout = 2; /* in seconds, 0->128 */
+        wdt.begin(config);
+    }
+    void WATCHDOG_FEED() {  wdt.feed();   }
+    void WATCHDOG_DISABLE(){}
+}
+#endif
 
 // custom library
 #include <RadioConfiguration.h>
-#include "ThermostatCommon.h"
 #include "Rfm69RawFrequency.h"
+#include "ThermostatCommon.h"
+
 
 #define ENABLE_OUTPUT_RELAYS 1  // for testing, the sketch can be built with outputs disabled.
-
 #define SCHEDULE_ENTRIES 1 // set to zero to remove this feature
+#define SERIAL_PORT_BAUDS 9600
+
+static_assert(sizeof(decltype(1L)) >= 4, "L suffix must get at least 32 bits");
+
+#if defined(F_CPU) && F_CPU > 200000000L
+class RFM69delayCanSend : public RFM69rawFrequency
+{
+public:
+    RFM69delayCanSend(int nss, int irq) : RFM69rawFrequency(nss, irq)
+    {    }
+
+    bool canSend() override
+    {   /* this delay(1) is inspired by the  #ifdef ESP8266 in the library code
+            https://github.com/LowPowerLab/RFM69        */
+        auto ret = RFM69::canSend();
+        if (!ret) delay(1);
+        return ret;
+    }
+};
+typedef RFM69delayCanSend ThermostatRFM69_t;
+#else
+typedef RFM69rawFrequency ThermostatRFM69_t;
+#endif
 
 namespace LCD {
     const byte MODE_COLUMN = 0;
@@ -98,27 +146,39 @@ namespace LCD {
     const byte HVAC_COMPRESSORHOLD_ROW = 0;
     const byte HVAC_COMPRESSORHOLD_COLUMN = 15;
 
+    const long WHEN_TO_REINIT_INTERVAL_MSEC = 60000L * 3; // 3 minutes
+    const int BANNER_TIME_MSEC = 10000;
+    const int BANNER_REPEAT_MSEC = 500;
+   
     SerLCD lcd;
-
-    const long WHEN_TO_REINIT_INTERVAL_MSEC = 60000 * 3; // 3 minutes
-    unsigned long whenToReinit;
+    decltype(millis()) whenToReinit;
+    bool reinit;
+    bool showingBanner;
+    decltype(millis()) bannerStarted;
+    decltype(millis()) bannerRepeatStarted;
 
     void backlightOK() { lcd.setBacklight(64, 64, 64);  }
+    bool banner() { return showingBanner;}
 
-    void init()
+    void setup()
     {
         lcd.begin(Wire);
+        delay(100);
         backlightOK();
+        delay(100);
         lcd.setContrast(5);
-        lcd.clear();
+        delay(100);
         lcd.noCursor();
         lcd.noBlink();
         lcd.noAutoscroll();
+        lcd.clear();
         whenToReinit = millis() + WHEN_TO_REINIT_INTERVAL_MSEC;
+        showingBanner = false;
     }
 
     void printMode(const char *m)
     {
+        if (banner()) return;
         lcd.setCursor(MODE_COLUMN, MODE_ROW);
         lcd.write(m);
         lcd.write(' ');
@@ -126,34 +186,37 @@ namespace LCD {
 
     void printTime(const char *t)
     {
+        if (banner()) return;
         lcd.setCursor(TIME_COLUMN, TIME_ROW);
         lcd.write(t);
     }
 
     void printTemperatures(const char *t)
     {
+        if (banner()) return;
         lcd.setCursor(HVAC_TEMPERATURES_COLUMN, HVAC_TEMPERATURES_ROW);
         lcd.write(t);
     }
 
     void printOutputs(const char *p)
     {
+        if (banner()) return;
         lcd.setCursor(HVAC_COLUMN, HVAC_ROW);
         lcd.write(p);
     }
 
     void printCompressorHold(const char *p)
     {
+        if (banner()) return;
         lcd.setCursor(HVAC_COMPRESSORHOLD_COLUMN, HVAC_COMPRESSORHOLD_ROW);
         lcd.write(p);
     }
 
     enum {BACKLIGHT_UNKNOWN, BACKLIGHT_OFF, BACKLIGHT_ON} backlightShowMissing24V;
-
-    bool reinit;
-
+ 
     void backLight(bool good)
     {   // change LCD backlight if R wire is not live.
+        if (banner()) return;
         if (good) {
             if (backlightShowMissing24V != BACKLIGHT_ON)
             {
@@ -173,17 +236,34 @@ namespace LCD {
         }
     }
 
-    const int BANNER_TIME_MSEC = 2000;
-    void printBanner(const char *p)
+    const char *prevBanner;
+    void printBannerHold(const char *p)
     {
         lcd.clear();
         lcd.write(p);
-        delay(BANNER_TIME_MSEC);
+        prevBanner = p; // don't like this, but the display, at startup, won't "hold" the text
+        showingBanner = true;
+        bannerStarted = bannerRepeatStarted = millis();
     }
 
     void loop(unsigned long now)
     {
-        if (now - whenToReinit > WHEN_TO_REINIT_INTERVAL_MSEC)
+        bool bOff = false;
+        if (showingBanner)
+        {
+            if (TimerCompleted(now, bannerStarted, BANNER_TIME_MSEC))
+            {
+                showingBanner = false;
+                bOff = true;
+            }
+            else if (TimerCompleted(now, bannerRepeatStarted, BANNER_REPEAT_MSEC))
+            {
+                bannerRepeatStarted = now;
+                lcd.clear();
+                lcd.write(prevBanner);
+            }
+        }
+        if (bOff || (!showingBanner && TimerCompleted(now, whenToReinit, WHEN_TO_REINIT_INTERVAL_MSEC)))
         {
             whenToReinit = now;
             lcd.clear();
@@ -191,7 +271,7 @@ namespace LCD {
             backlightShowMissing24V = BACKLIGHT_UNKNOWN;
         }
     }
-}
+ }
 
 namespace
 {
@@ -235,14 +315,14 @@ namespace
     // Arduino pin assignments **********************************************************
     // These correspond with the PCB layout**********************************************
     const int RFM69_SPI_CS_PIN = 10; // pin number
-    const int RMF69_INT_PIN = 7; // 32U4 has hardware interrupt on this pin
+    const int RMF69_INT_PIN = 7; // Must be hardware interrupt on this pin
     const int OUTREG_SPI_CS_PIN = 9;
 
     const int S1_7089U_OUTSIDE_PIN = A1;
     const int T_LM235_INLET_PIN = A2;
     const int T_LM235_OUTLET_PIN = A3;
 
-    /* Both SPI and 2Wire functions are used, and are on the Atmega-defined pin positions,
+    /* Both SPI and 2Wire functions are used, and are on the CPU-defined pin positions,
     ** therefore no pin name declarations for them are here. */
 
     /* the PCB silkscreen gives generic names to the six input signals
@@ -261,7 +341,7 @@ namespace
     **
     **	W is also unique in that it has a normaly closed relay through connection
     **
-    ** There is a seventh input signal, R_ACTIVE, which goes low if 24VAC appears on the R versus C
+    ** The PCB provides a seventh input signal, R_ACTIVE, which goes low if 24VAC appears on the R versus C
     ** of the thermostat output.
     ** And there is a seventh output signal, X3, which has an output relay but no corresponding input bit.
     */
@@ -292,7 +372,7 @@ namespace
 
     char cmdbuf[CMD_BUFLEN];
     unsigned char charsInBuf;
-    RFM69rawFrequency radio(RFM69_SPI_CS_PIN, RMF69_INT_PIN);
+    ThermostatRFM69_t radio(RFM69_SPI_CS_PIN, RMF69_INT_PIN);
     RadioConfiguration radioConfiguration;
     bool radioSetupOK = false;
     const uint8_t GATEWAY_NODEID = 1;
@@ -304,8 +384,8 @@ namespace
     const int POWER2_ADC_READS_TO_AVERAGE = 6;
     const int NUMBER_TEMPERATURE_ADC_READS_TO_AVERAGE = 1 << POWER2_ADC_READS_TO_AVERAGE; // 2**6 = 64
 
-    const uint16_t POLL_ADC_MSEC = 1000;  // 1000 msec between reads, times 64 is (about) 64 seconds
-    const uint16_t BETWEEN_REPORTING_TEMPERTURE_MSEC = 60 * 1000 * 3; // 3 minutes
+    const int16_t POLL_ADC_MSEC = 1000;  // 1000 msec between reads, times 64 is (about) 64 seconds
+    const long BETWEEN_REPORTING_TEMPERTURE_MSEC = 60 * 1000L * 3; // 3 minutes
     uint16_t TinletADCsum; // 10 bit ADC summed 64 times just fits here
     uint16_t ToutletADCsum;
     uint16_t TexternalADCsum;
@@ -335,7 +415,8 @@ namespace
         Serial.print(F(" key "));
         radioConfiguration.printEncryptionKey(Serial);
         Serial.println();
-        Serial.print(F("FreqRaw=")); Serial.println(radio.getFrequencyRaw() );
+        if (radioSetupOK)
+        { Serial.print(F("FreqRaw=")); Serial.println(radio.getFrequencyRaw() );}
 #endif
     }
 
@@ -645,7 +726,7 @@ namespace
         p = reportHvacOut(p,  outputs);
         *p++ = ' ';
         auto q = rtc.stringTime8601();
-        while (*p++ = *q++);
+        while ((*p++ = *q++));
         if (radioSetupOK)
             radio.sendWithRetry(GATEWAY_NODEID, reportbuf, strlen(reportbuf));
 #if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
@@ -815,13 +896,23 @@ namespace
 #if USE_SERIAL >= SERIAL_PORT_DEBUG
         else if (strcmp(cmd, "CRASH") == 0)
         {
-            ProcessCommand(cmd, len);
+            ProcessCommand(cmd, len); // infinite recurse
         }
+        else if (strcmp(cmd,"WDT_TEST") == 0)
+            while(true); // force watchdog timeout
         else if (toupper(cmd[0]) == 'U' && toupper(cmd[1]) == 'O' && cmd[2] == '=' && cmd[3] == '0' && cmd[4]=='x')
         {
             q = cmd+5;
             uint8_t mask = aHexToInt(q);
             Furnace::UpdateOutputs(mask);
+            return true;
+        }
+#endif
+#if USE_SERIAL > SERIAL_PORT_OFF
+        else if (strcmp(cmd, "VERSION") == 0)
+        {
+            Serial.println(VERSION_STRING);
+            return true;
         }
 #endif
         return false;
@@ -865,7 +956,7 @@ namespace
 #endif
                 LCD::printMode(hvac->ModeNameString());
                 if (tempOK && hvac->TypeNumber() == tempType && hvac->ModeNumber() != tempMode)
-                    setTemperatureCx10(targetCx10);
+                    setTemperatureCx10(targetCx10); // recurse ONLY if Mode changed, but Type unchanged
                 InputsToHvacFlag = true;
             }
         }
@@ -892,7 +983,7 @@ namespace
     {
         static char buf[20];
         strcpy(buf, HVAC_SETTINGS);
-#if        HVAC_AUTO_CLASS
+#if HVAC_AUTO_CLASS
         if (autoMode)
             strcpy(buf, AUTO_SETTINGS);
 #endif
@@ -908,47 +999,45 @@ namespace Furnace {
     uint8_t LastOutputWrite;
     bool wRelayIsOn(false);
     msec_time_stamp_t relayonAtTime;
-    const unsigned long MINIMUM_W_ON_MSEC = 60000L;
+    const long MINIMUM_W_ON_MSEC = 60000L;
 
     void UpdateOutputs(uint8_t mask)
     {
         mask &= OUTPUT_SIGNAL_MASK;
-        LastOutputWrite = mask;
+        LastOutputWrite = mask; // mask as commanded
 
         if (HeatSafetyOffTimeActive)
             mask &= HeatSafetyShutoffMask;
-        const auto now = millis();
         
-        // check compressor short cycling logic
         uint8_t compressorMask = getCompressorMask();
+        if (CompressorOffTimeActive) // updating output while off time active
+            mask &= ~compressorMask; // ensure compressors not turned on
+
+        const auto now = millis();
+        // Activate hardware relay if input W doesn't match output W
+        mask &= ~(1 << BN_W_FAILSAFE); // hardware relay off by default
+        /* Deal with possibility that W signal is coming from furnace side. 
+        ** Once W relay is pulled in, keep it in for a while to prevent chatter */   
+        if ((wRelayIsOn && (wRelayIsOn = !TimerCompleted(now, relayonAtTime, MINIMUM_W_ON_MSEC))) 
+            ||
+            ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && // W output does not match input
+                (relayonAtTime = now, wRelayIsOn = true) //assignments!
+            ))
+            mask |= 1 << BN_W_FAILSAFE; /// hardware relay on now
+
+        // compressor short cycling logic
         if (!CompressorOffTimeActive && compressorMask != 0xff)
         {
             bool compressorWasOn = 0 != (OutputRegister & compressorMask);
             bool compressorToBeOff = 0 == (mask & compressorMask);
             if (compressorWasOn && compressorToBeOff)
-            {   // this command is turning the compressor off
+            {   // this SPI command is turning the compressor off
                 CompressorOffTimeActive = true;
                 CompressorOffStartTime = now;
             }
         }
-        if (CompressorOffTimeActive)
-        {   // updating output while off time active
-            mask &= ~compressorMask; // ensure compressors not turned on
-        }
 
-        // Activate hardware relay if input W doesn't match output W
-        mask &= ~(1 << BN_W_FAILSAFE); 
-        
-        /* Deal with possibility that W signal is coming from furnace side. 
-        ** Once W relay is pulled in, keep it in for a while to prevent chatter */
-        
-        if ((wRelayIsOn && (wRelayIsOn = (now - relayonAtTime < MINIMUM_W_ON_MSEC))) ||
-            ((((mask & (1 << BN_W)) ^ (InputRegister & (1 << BN_W))) != 0) && 
-                (relayonAtTime = now, wRelayIsOn = true) //assignments
-            )) 
-            mask |= 1 << BN_W_FAILSAFE; /// hardware relay on
-
-        OutputRegister = mask;
+        OutputRegister = mask; // mask as actually output
 #if ENABLE_OUTPUT_RELAYS > 0
 #if USE_SERIAL >= SERIAL_PORT_SETME_DEBUG_TO_SEE
         Serial.print(F("UpdateOutputs: 0x"));
@@ -962,7 +1051,7 @@ namespace Furnace {
 #endif
     }
 
-    void SetOutputBits(uint8_t mask = 0)
+    void SetOutputBits(uint8_t mask)
     {   // change only specific bits
         mask |= LastOutputWrite;
         UpdateOutputs(mask);
@@ -970,15 +1059,14 @@ namespace Furnace {
 
     void ClearOutputBits(uint8_t mask)
     {   // change only specific bits
-        mask = ~mask;
         uint8_t next = LastOutputWrite;
-        next &= mask;
+        next &= ~mask;
         UpdateOutputs(next);
     }
 
     void loop(msec_time_stamp_t now)
     {
-        if (wRelayIsOn && (now - relayonAtTime >= MINIMUM_W_ON_MSEC))
+         if (wRelayIsOn && TimerCompleted(now, relayonAtTime, MINIMUM_W_ON_MSEC))
             SetOutputBits();
     }
 }
@@ -1027,30 +1115,27 @@ uint32_t aHexToInt(const char*&p)
 }
 
 void setup()
-{
-#if USE_SERIAL > SERIAL_PORT_OFF
-    Serial.begin(9600);
+{   // NOTE: get setup() not ONLY on power up. Also get here if watchdog times out, and will still be enabled.
+    WATCHDOG_DISABLE();
+    
+ #if USE_SERIAL > SERIAL_PORT_OFF
+    Serial.begin(SERIAL_PORT_BAUDS);
 #endif
-#if USE_SERIAL >= SERIAL_PORT_DEBUG 
-    for (uint8_t i = 0; i < 1500; i++)
-        if (Serial.read() >= 0)
-            break;
-        else
-            delay(10);
-    Serial.println(F("PacketThermostat DEBUG"));
-#elif USE_SERIAL >= SERIAL_PORT_OFF 
-    Serial.println(F("PacketThermostat Rev03"));
-#endif
+    Serial.println(F("PacketThermostat " VERSION_STRING));
 
+    // for multiple SPI devices, MUST turn EVERY device CS pin high before SPI.begin()
     digitalWrite(OUTREG_SPI_CS_PIN, HIGH);
     pinMode(OUTREG_SPI_CS_PIN, OUTPUT);
+    digitalWrite(RFM69_SPI_CS_PIN, HIGH);
+    pinMode(RFM69_SPI_CS_PIN, OUTPUT);
+    // end multiple SPI devices....
+
     displayLcdFarenheit = EEPROM.read(static_cast<int>(EepromAddresses::DISPLAY_UNITS_ADDRESS)) != 0;
 
     Wire.begin();
     SPI.begin();
     Furnace::UpdateOutputs(0);
 
-    // setup radio
     // setup RTC
     if (rtc.begin() == false)
     {
@@ -1067,9 +1152,9 @@ void setup()
 #endif
     }
 
-    LCD::init();
+    LCD::setup();
 
-    // Initialize the RFM69HCW:
+    // setup radio
     bool ok = false;
     if (radioConfiguration.NodeId() != 0xff &&
         radioConfiguration.NetworkId() != 0xff)
@@ -1105,10 +1190,9 @@ void setup()
         if (radioConfiguration.encrypted())
             radio.encrypt(key);
     }
-    delay(1000);
-    LCD::printBanner(radioSetupOK ? "Radio OK" : "Radio No Good");
+    
 
-    analogReference(DEFAULT); // 3.3V full scale at 10 bits, which is 1023
+ // analogReference(DEFAULT); 1023 readout at the 3.3V supply voltage is default in both supported CPU architectures
 
     pinMode(PCB_INPUT_X1_PIN, INPUT_PULLUP);
     pinMode(PCB_INPUT_X2_PIN, INPUT_PULLUP);
@@ -1120,100 +1204,36 @@ void setup()
 
     ThermostatCommon::setup();
 
-    wdt_enable(WDTO_8S);
+    LCD::printBannerHold(radioSetupOK ? VERSION_STRING "\r\nRadio OK" : 
+            VERSION_STRING "\r\nRadio No Good");
+
+    WATCHDOG_ENABLE();
 }
 
 void loop()
-{   wdt_reset();
+{   WATCHDOG_FEED();
     const auto now = millis();
-    static_assert(sizeof(now) == sizeof(msec_time_stamp_t), "msec_time_stamp_t must match type of millis()");
     auto previousInputRegister = InputRegister;
     auto previousOutputRegister = OutputRegister;
 
-    {   // every second (or so) update the RTC time on the LCD
-        const unsigned long LCD_TIME_UPDATE_MSEC = 1000;
-        static unsigned long lastLCDupdate;
-        static bool firstTime=true;
-        static_assert(sizeof(lastLCDupdate) == sizeof(now), "lastLCDupdate wrong size");
-        int diff = now - lastLCDupdate;
-        if (diff > LCD_TIME_UPDATE_MSEC)
-        {
-            lastLCDupdate = now;
-            if (firstTime)
-                firstTime = false;
-            else
-            {
-                rtc.updateTime();
-                uint8_t hrs = rtc.getHours();
-                uint8_t min = rtc.getMinutes();
-                char *p = reportbuf;
-                if (hrs < 10)
-                    *p++ = '0';
-                else
-                {
-                    *p++ = '0' + hrs / 10;
-                    hrs %= 10;
-                }
-                *p++ = '0' + hrs;
-                *p++ = ':';
-                if (min < 10)
-                    *p++ = '0';
-                else
-                {
-                    *p++ = '0' + min / 10;
-                    min %= 10;
-                }
-                *p++ = '0' + min;
-                *p++ = 0;
-                LCD::printTime(&reportbuf[0]);
-                printHvacTemperatures();
-                LCD::printCompressorHold(CompressorOffTimeActive ? "H" : "");
-            }
-        }
-    }
-
-#if SCHEDULE_ENTRIES
-    {   // check schedule slightly faster than once per minute
-        const unsigned long SCEDULE_TIME_UPDATE_MSEC = 40000; // less than one minute
-        static unsigned long lastScheduleUpdate;
-        static_assert(sizeof(lastScheduleUpdate) == sizeof(now), "lastScheduleUpdate wrong size");
-        int diff = now - lastScheduleUpdate;
-        if (diff > SCEDULE_TIME_UPDATE_MSEC)
-        {
-            lastScheduleUpdate = now;
-            rtc.updateTime();
-            uint8_t hrs = rtc.getHours();
-            uint8_t mins = rtc.getMinutes();
-            int weekday = rtc.getWeekday();
-            for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
-            {
-                auto se = getScheduleEntry(i);
-                if ((0 != ((int)se.DaysOfWeek & (1 << weekday))) &&
-                    hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
-                    mins == static_cast<uint8_t>(se.TimeOfDayMinute))
-                {
-                    setTemperatureCx10((int)se.degreesCx5 << 1, se.AutoMode);
-                    LCD::reinit = true;
-                }
-            }
-        }
-    }
-#endif
-
-    if (CompressorOffTimeActive && (now - CompressorOffStartTime) > 1000L * getCompressorHoldSeconds())
+    if (CompressorOffTimeActive && TimerCompleted(now, CompressorOffStartTime , 1000L * getCompressorHoldSeconds()))
     {   // deal with possible expiration of the compressor short cycle prevention timer
         CompressorOffTimeActive = false;
         Furnace::SetOutputBits();
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+        Serial.println(F("Compressor off timer ended"));
+#endif
     }
-    if (HeatSafetyOffTimeActive)
+
+    if (HeatSafetyOffTimeActive && TimerCompleted(now,  HeatSafetyOffStartTime,  1000L * getHeatSafetyHoldSeconds()))
     {
-        if ((now - HeatSafetyOffStartTime) > 1000L * getHeatSafetyHoldSeconds())
-        {
-            HeatSafetyOffTimeActive = false;
-            LCD::printBanner(hvac->ModeNameString());
-            Furnace::SetOutputBits();
-        }
+        HeatSafetyOffTimeActive = false;
+        Furnace::SetOutputBits();
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+        Serial.println(F("Heat safety timer ended"));
+#endif
     }
+
     if (!HeatSafetyOffTimeActive)
     {   // check inlet temperature in heat modes and shut down if EEPROM settings say so
         auto heatSafetySeconds = getHeatSafetyHoldSeconds();
@@ -1232,14 +1252,51 @@ void loop()
                         { // table indicates this IS a heat mode, so shut down heat
                             HeatSafetyOffStartTime = millis();
                             HeatSafetyOffTimeActive = true;
-                            LCD::printBanner(HeatSafetyBanner);
+                            LCD::printBannerHold(HeatSafetyBanner);
                             HeatSafetyShutoffMask = ~m.toClear;
                             Furnace::SetOutputBits();
+#if USE_SERIAL >= SERIAL_PORT_VERBOSE
+                            Serial.println(F("Heat safety timer triggered"));
+#endif
                             break;
                         }
                     }
                 }
             }
+        }
+    }
+
+    {  // every second (or so) update the RTC time on the LCD
+        const int LCD_TIME_UPDATE_MSEC = 1000;
+        static msec_time_stamp_t lastLCDupdate = now - 1 - LCD_TIME_UPDATE_MSEC;
+        if (TimerCompleted(now, lastLCDupdate, LCD_TIME_UPDATE_MSEC))
+        {
+            lastLCDupdate = now;
+            rtc.updateTime();
+            uint8_t hrs = rtc.getHours();
+            uint8_t min = rtc.getMinutes();
+            char *p = reportbuf;
+            if (hrs < 10)
+                *p++ = '0';
+            else
+            {
+                *p++ = '0' + hrs / 10;
+                hrs %= 10;
+            }
+            *p++ = '0' + hrs;
+            *p++ = ':';
+            if (min < 10)
+                *p++ = '0';
+            else
+            {
+                *p++ = '0' + min / 10;
+                min %= 10;
+            }
+            *p++ = '0' + min;
+            *p++ = 0;
+            LCD::printTime(&reportbuf[0]);
+            printHvacTemperatures();
+            LCD::printCompressorHold(CompressorOffTimeActive ? "H" : " ");
         }
     }
 
@@ -1267,7 +1324,7 @@ void loop()
         static msec_time_stamp_t RestartedChecking; // some functions in loop() take longer than INPUT_AC_ACTIVE_MIN_MSEC
         // when restarting checking after missing that long, don't turn off outputs until we've seen enough inputs
 
-        if (now - LastChecked >= INPUT_AC_ACTIVE_MIN_MSEC / 4) 
+        if (TimerCompleted(now, LastChecked,  INPUT_AC_ACTIVE_MIN_MSEC / 4))
             RestartedChecking = now;
 
         uint8_t mask = 1;
@@ -1280,8 +1337,8 @@ void loop()
             }
             else 
             {
-                if (static_cast<unsigned long>(now - LastSeenActive[i]) >= INPUT_AC_ACTIVE_MIN_MSEC &&
-                    static_cast<unsigned long>(now - RestartedChecking) >= INPUT_AC_ACTIVE_MIN_MSEC)
+                if (TimerCompleted(now, LastSeenActive[i],  INPUT_AC_ACTIVE_MIN_MSEC) &&
+                    TimerCompleted(now, RestartedChecking,  INPUT_AC_ACTIVE_MIN_MSEC))
                     InputRegister &= ~mask;
             }
         }
@@ -1299,56 +1356,56 @@ void loop()
     {   // An ADC read takes a large number of cycles. Spread the 3 of them out through multiple loops
         static unsigned long lastTemperatureAcquireMsec;
         static enum {DO_T_INLET, DO_T_OUTLET, DO_OUTSIDE, DO_REPORT, WAIT_REPORT_INTERVAL} temperatureAcquireState;
-        uint16_t diffMsec = now - lastTemperatureAcquireMsec;
+        msec_time_diff_t diffMsec = now - lastTemperatureAcquireMsec;
         switch (temperatureAcquireState)
         {
-            // the ADC reads are done on consecutive loop() calls
-            case DO_T_INLET:
-                if (diffMsec >= POLL_ADC_MSEC)
-                {   // stay in D_T_INLETT for POLL_ADC_MSEC msec
-                    auto vTi = analogRead(T_LM235_INLET_PIN); // Pro Micro has 10bit A/D
-                    TinletADCsum += vTi;
-                    temperatureAcquireState = DO_T_OUTLET;
-                }
-                break;
-            case DO_T_OUTLET:
+        // the ADC reads are done on consecutive loop() calls
+        case DO_T_INLET:
+            if (diffMsec >= POLL_ADC_MSEC)
+            {   // stay in D_T_INLETT for POLL_ADC_MSEC msec
+                auto vTi = analogRead(T_LM235_INLET_PIN); // Pro Micro has 10bit A/D
+                TinletADCsum += vTi;
+                temperatureAcquireState = DO_T_OUTLET;
+            }
+            break;
+        case DO_T_OUTLET:
+            {
+                auto vTi = analogRead(T_LM235_OUTLET_PIN); // Pro Micro has 10bit A/D
+                ToutletADCsum += vTi;
+                temperatureAcquireState = DO_OUTSIDE;
+            }
+            break;
+        case DO_OUTSIDE:
                 {
-                    auto vTi = analogRead(T_LM235_OUTLET_PIN); // Pro Micro has 10bit A/D
-                    ToutletADCsum += vTi;
-                    temperatureAcquireState = DO_OUTSIDE;
-                }
-                break;
-            case DO_OUTSIDE:
-                 {
-                    auto vTi = analogRead(S1_7089U_OUTSIDE_PIN); // Pro Micro has 10bit A/D
-                    TexternalADCsum += vTi;
-                    numberReadsInSum += 1;
-                    if (numberReadsInSum >= NUMBER_TEMPERATURE_ADC_READS_TO_AVERAGE)
-                        temperatureAcquireState = DO_REPORT;
-                    else
-                        temperatureAcquireState = DO_T_INLET;
-                    lastTemperatureAcquireMsec = now;
-                }
-                break;
-            case DO_REPORT:
-                {
-                    radioTemperatureReport(TinletADCsum, ToutletADCsum, TexternalADCsum);
-                    TinletTemperatureCx10 = degreesCx10fromLM235ADCx64(TinletADCsum);
-                    lastTemperatureAcquireMsec = now;
-                    temperatureAcquireState  = WAIT_REPORT_INTERVAL;
-                }
-                break;
-            case WAIT_REPORT_INTERVAL:
-                if (diffMsec >= BETWEEN_REPORTING_TEMPERTURE_MSEC)
-                {
-                    TexternalADCsum = 0;
-                    ToutletADCsum = 0;
-                    TinletADCsum = 0;
-                    numberReadsInSum = 0;
-                    lastTemperatureAcquireMsec = now;
+                auto vTi = analogRead(S1_7089U_OUTSIDE_PIN); // Pro Micro has 10bit A/D
+                TexternalADCsum += vTi;
+                numberReadsInSum += 1;
+                if (numberReadsInSum >= NUMBER_TEMPERATURE_ADC_READS_TO_AVERAGE)
+                    temperatureAcquireState = DO_REPORT;
+                else
                     temperatureAcquireState = DO_T_INLET;
-                }
-                break;
+                lastTemperatureAcquireMsec = now;
+            }
+            break;
+        case DO_REPORT:
+            {
+                radioTemperatureReport(TinletADCsum, ToutletADCsum, TexternalADCsum);
+                TinletTemperatureCx10 = degreesCx10fromLM235ADCx64(TinletADCsum);
+                lastTemperatureAcquireMsec = now;
+                temperatureAcquireState  = WAIT_REPORT_INTERVAL;
+            }
+            break;
+        case WAIT_REPORT_INTERVAL:
+            if (diffMsec >= BETWEEN_REPORTING_TEMPERTURE_MSEC)
+            {
+                TexternalADCsum = 0;
+                ToutletADCsum = 0;
+                TinletADCsum = 0;
+                numberReadsInSum = 0;
+                lastTemperatureAcquireMsec = now;
+                temperatureAcquireState = DO_T_INLET;
+            }
+            break;
         }
     }
 
@@ -1374,7 +1431,7 @@ void loop()
 #endif
 
     // check radio
-    if (radio.receiveDone()) // Got a packet over the radio
+    if (radioSetupOK && radio.receiveDone()) // Got a packet over the radio
     {   // RFM69 ensures no trailing zero byte when buffer is full
         memset(reportbuf, 0, sizeof(reportbuf));
         memcpy(reportbuf, &radio.DATA[0], sizeof(radio.DATA));
@@ -1392,19 +1449,49 @@ void loop()
 #endif
     }
 
+#if SCHEDULE_ENTRIES
+    {   // check schedule slightly faster than once per minute
+        const long SCEDULE_TIME_UPDATE_MSEC = 40000; // less than one minute
+        static auto lastScheduleUpdate = now;
+        if (TimerCompleted(now, lastScheduleUpdate, SCEDULE_TIME_UPDATE_MSEC))
+        {
+            lastScheduleUpdate = now;
+            rtc.updateTime();
+            uint8_t mins = rtc.getMinutes();
+            static auto prevMins = mins;
+            if (prevMins != mins)
+            {   // only process once for a given minute
+                uint8_t hrs = rtc.getHours();
+                int weekday = rtc.getWeekday();
+                for (uint8_t i = 0; i < NUM_SCHEDULE_TEMPERATURE_ENTRIES; i++)
+                {
+                    auto se = getScheduleEntry(i);
+                    if ((0 != ((int)se.DaysOfWeek & (1 << weekday))) &&
+                        hrs == static_cast<uint8_t>(se.TimeOfDayHour) &&
+                        mins == static_cast<uint8_t>(se.TimeOfDayMinute))
+                    {
+                        setTemperatureCx10((int)se.degreesCx5 << 1, se.AutoMode);
+                        LCD::reinit = true;
+                    }
+                }
+                prevMins = mins;
+            }
+        }
+    }
+#endif
+
     hvac->loop(now);
     Furnace::loop(now);
+    LCD::loop(now);
 
     if (LCD::reinit)
-    {   // the LCD display seems to get out of sync. Force a full update of it occasionally
-        LCD::printBanner(HeatSafetyOffTimeActive ? HeatSafetyBanner : hvac->ModeNameString());
+    {   
         lcdHvacReport(OutputRegister & OUTPUT_SIGNAL_MASK);
+        LCD::printMode(hvac->ModeNameString());
         LCD::reinit = false;
     }
 
-    LCD::loop(now);
-
-    if (  ((previousInputRegister  & INPUT_SIGNAL_MASK ) != (InputRegister  & INPUT_SIGNAL_MASK)) 
+    if (((previousInputRegister  & INPUT_SIGNAL_MASK ) != (InputRegister  & INPUT_SIGNAL_MASK)) 
         || (previousOutputRegister != OutputRegister ))
         radioHvacReport(inputsAsRead, OutputRegister);
 }

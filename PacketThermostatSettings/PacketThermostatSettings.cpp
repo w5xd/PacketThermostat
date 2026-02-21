@@ -45,12 +45,6 @@ THE SOFTWARE.
 #else
 #include "SerialPortLinux.h"
 #endif
-#ifdef min 
-#undef min
-#endif
-#ifdef max
-#undef max
-#endif
 
 class SerialWrapper {
 public:
@@ -101,7 +95,7 @@ protected:
 };
 
 /* The mapping of PCB/sketch pins to thermostat signals here is five signals:
-** X1 is  O is the compressor reversing valve, with "ON" calling for cool, OFF for heat.
+** X1 is the compressor reversing valve. O by default, -B argument makes it use B standard. 
 ** W  is  W, the furnace
 ** X2 is  Y, the (only or stage 1) compressor
 ** X3 is aux fan. 
@@ -133,11 +127,10 @@ struct WaitFailed : public std::runtime_error
     {}
 };
 
-
 int main(int argc, char **argv)
 {
     static const char *USAGE1 = 
-        "usage: PacketThermostatSettings [<COMMPORT> | - ] CONFIGURE -s <thermometer#1> -s <thermometer#2> ... -s <thermometer#n>";
+        "usage: PacketThermostatSettings [<COMMPORT> | - ] CONFIGURE [-B] -s <thermometer#1> -s <thermometer#2> ... -s <thermometer#n>";
     if (argc < 3)
     {
         std::cerr << USAGE1 << std::endl;

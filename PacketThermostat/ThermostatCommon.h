@@ -1,5 +1,6 @@
 #pragma once
 #include "PcbSignalDefinitions.h"
+
 // values for USE_SERIAL. each one uses a bit more program memory
 #define SERIAL_PORT_OFF 0 // If you use this, you can't set the radio parameters on the serial port.
 #define SERIAL_PORT_PROMPT_ONLY 1
@@ -8,7 +9,7 @@
 #define SERIAL_PORT_DEBUG 4
 #define SERIAL_PORT_SETME_DEBUG_TO_SEE 5
 
-#define USE_SERIAL SERIAL_PORT_VERBOSE   
+#define USE_SERIAL SERIAL_PORT_DEBUG   
 #define HVAC_AUTO_CLASS 1 // not enough program memory for all features? Turn this off.
 
 namespace Furnace {
@@ -20,6 +21,8 @@ extern uint16_t aDecimalToInt(const char*&);
 extern uint32_t aHexToInt(const char*&);
 
 typedef unsigned long msec_time_stamp_t;
+typedef signed long msec_time_diff_t;
+
 struct ThermostatCommon
 {
 public:
@@ -36,6 +39,11 @@ protected:
     static uint8_t MyTypeNumber;
     static uint8_t MyModeNumber;
 };
+
+//signed/unsigned arithmetic is involved in timer compares and easy to get wrong
+template <typename D>
+bool TimerCompleted(msec_time_stamp_t now, msec_time_stamp_t started, D interval)
+{ return static_cast<msec_time_diff_t>(now - started) >= static_cast<msec_time_diff_t>(interval);}
 
 extern ThermostatCommon *hvac;
 extern const int HVAC_EEPROM_START;

@@ -19,13 +19,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
 */
 
 #include <Arduino.h>
 #include <EEPROM.h>
 #include "ThermostatCommon.h"
-
 
 /* The various HVAC implementations are a mix of classes with subclasses, each itself being table-driven.
 ** There is a trivial class, PassThrough, and four (interesting) classes.
@@ -288,6 +286,7 @@ protected:
 };
 
 static const msec_time_stamp_t SENSOR_TIMEOUT_MSEC = 1000L * 60L * 15L; // 15 minutes
+static const int16_t PARSE_ERROR_RETURN = -9999;
 
 class OverrideAndDriveFromSensors : public HvacCommands
 {
@@ -310,14 +309,6 @@ public:
 protected:
     void OnInputsChanged(uint8_t inputs, uint8_t previous) override  { return;} // ignore inputs
     void TurnFurnaceOff() override { Furnace::UpdateOutputs(settingsFromEeprom.AlwaysOnMask); }
-    struct OffOnExit {
-        OffOnExit() : off(0) {}
-        ~OffOnExit()
-        {
-            Furnace::UpdateOutputs(off);
-        }
-        uint8_t off;
-    };
     bool ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid, bool toMe) override
     {
         if (HvacCommands::ProcessCommand(cmd, len, senderid, toMe))
@@ -358,12 +349,6 @@ protected:
                 //               1     Seconds to stages 2 and 3 are unimportant, 1 second each
                 // HVAC_SETTINGS 206 211 300 10 04 08 08 08 1 1
 
-                OffOnExit offOnExit;
-                offOnExit.off = settingsFromEeprom.AlwaysOnMask;
-                if (fanIsOn)
-                    offOnExit.off |= settingsFromEeprom.MaskFanOnly;
-                fancoilState = STATE_OFF;
-
                 q += sizeof(HVAC_SETTINGS) - 1;
                 settingsFromEeprom.TemperatureTargetDegreesCx10 = aDecimalToInt(q);
                 // default activate temperature if not given
@@ -375,7 +360,6 @@ protected:
                 if (!*q) return true;
                 settingsFromEeprom.MaskFanOnly = aHexToInt(q);
                 if (!*q) return true;
-                offOnExit.off = 
                 settingsFromEeprom.AlwaysOnMask = aHexToInt(q);
                 if (!*q) return true;
                 settingsFromEeprom.OutputStage1 = aHexToInt(q);
@@ -404,19 +388,18 @@ protected:
             const auto now = millis();
             if (lastHeardSensorId > 0 &&
                 (senderid > lastHeardSensorId) &&
-                (static_cast<msec_time_stamp_t>(now - lastHeardFromSensor) < SENSOR_TIMEOUT_MSEC))
-                return true; // ignore lower priority sensor if higher one has checked in recently
-            lastHeardFromSensor = now;
-            lastHeardSensorId = senderid;
-
+                !TimerCompleted(now, lastHeardFromSensor, SENSOR_TIMEOUT_MSEC))
+                return false; // ignore lower priority sensor if higher one has checked in recently
+ 
             // Example thermometers:
             //      C:49433, B:244, T:+20.37
             //      C:1769, B:198, T:+20.58 R:45.46
             int16_t tCx10 = parseForColon('T', cmd, len);
-            if (tCx10 == -1)
+            if (tCx10 == PARSE_ERROR_RETURN)
                 return false;
+            lastHeardFromSensor = now;
+            lastHeardSensorId = senderid;
             int16_t rhx10 = parseForColon('R', cmd, len);
-            auto prevState = fancoilState;
             uint8_t output = settingsFromEeprom.AlwaysOnMask;
             bool needToBeOn = OnReceivedTemperatureInput(tCx10);
             previousActual = tCx10;
@@ -457,12 +440,11 @@ protected:
     
     bool isSensorTimedOut(msec_time_stamp_t now)
     {
-        long interval = now - lastHeardFromSensor; // can (and will!) be negative first time through
-        bool ret = interval > (settingsFromEeprom.SecondsToThirdStage * 2000l);
+        bool ret = TimerCompleted(now, lastHeardFromSensor, settingsFromEeprom.SecondsToThirdStage * 2000l);
         if (ret) {
 #if USE_SERIAL >= SERIAL_PORT_VERBOSE
-            Serial.print("Sensor timed out! ");
-            Serial.println(interval);
+            Serial.print(F("Sensor timed out! id="));
+            Serial.println(lastHeardSensorId);
 #endif
             previousActual = 0;
             TurnFurnaceOff();
@@ -480,7 +462,7 @@ protected:
                 fancoilState = STATE_OFF;
                 return;
             }
-            int32_t sinceStage1 = now - timeEnteredStage1;
+            msec_time_diff_t sinceStage1 = now - timeEnteredStage1;
             if (sinceStage1 >= settingsFromEeprom.SecondsToThirdStage * 1000l)
             {
                 if (fancoilState != STATE_STAGE3)
@@ -499,7 +481,6 @@ protected:
             }
         }
     }
-
     static int16_t parseForColon(char flag, const char* p, uint8_t len)
     {   // help parse the Wireless Thermometer packet
         int16_t ret(0);
@@ -507,9 +488,9 @@ protected:
         for (;;)
         {
             if (!*p)
-                return -1;
+                return PARSE_ERROR_RETURN;
             if (c == 0)
-                return -1;
+                return PARSE_ERROR_RETURN;
             if (p[0] == flag && p[1] == ':')
             {
                 p += 2;  c -= 2;
@@ -519,15 +500,18 @@ protected:
                     neg = true;
                     p += 1;
                     c -= 1;
-                } else if (*p == '+')
+                } else if ((*p == '+') || (*p == ' '))
                 {
                     neg = false;
                     p += 1;
                     c -= 1;
                 }
-                ret = aDecimalToInt(p) * 10;
-                if (isdigit(*p))
+                if (!isdigit(*p))
+                    return PARSE_ERROR_RETURN;
+                ret = aDecimalToInt(p) * 10; // whole part of temperature
+                if (isdigit(*p))    // tenths of degree
                     ret += *p - '0';
+                // hundredths of a degree C is ignored
                 if (neg)
                     ret = -ret;
                 break;
@@ -591,6 +575,7 @@ protected:
         return true; 
     }
 
+    // we have multiple subclasses, but they all share these statics:
     static msec_time_stamp_t lastHeardFromSensor; 
     static uint8_t lastHeardSensorId;
     static msec_time_stamp_t timeEnteredStage1; 
@@ -784,7 +769,7 @@ protected:
                 heatState = HEAT_OFF;
                 return;
             }
-            int32_t sinceStage1 = now - timeEnteredStage1;
+            msec_time_diff_t sinceStage1 = now - timeEnteredStage1;
             if (sinceStage1 >= OverrideAndDriveFromSensors::settingsFromEeprom.SecondsToThirdStage * 1000l)
             {
                 if (heatState != HEAT_STAGE3)
@@ -878,7 +863,7 @@ protected:
 #endif
 namespace
 {
-    //  need exactly one instance of each thermostat type
+    //  need exactly one singleton instance of each thermostat type
     PassThrough passThrough;
     MapInputToOutput mapInputToOutput;
     HvacHeat hvacHeat;
@@ -1000,6 +985,7 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
     static const char COUNT_COMMAND[] = "COUNT="; // WARNING. This command invalidates all previously saved eepromSettings!!!!
     static const char COMMIT_COMMAND[] = " COMMIT";
     static const char NAME_COMMAND[] = "NAME=";
+    static const char BOOT_COMMAND[] = "BOOT";
 
     const char* p = cmd;
     const char* q = HVAC_COMMAND;
@@ -1086,9 +1072,12 @@ bool HvacCommands::ProcessCommand(const char* cmd, uint8_t len, uint8_t senderid
             hvac = temp = ThermostatModeTypes[hvacType];
             temp->InitializeState();
             temp->ReadSettings();
-            EEPROM.write(HVAC_EEPROM_TYPE_AND_MODE_ADDR, hvacType);
-            EEPROM.write(HVAC_EEPROM_TYPE_AND_MODE_ADDR+1, MyModeNumber);
             temp->TurnFurnaceOff(); // turn furnace off now
+            if (strstr(cmd, BOOT_COMMAND))
+            {
+                EEPROM.write(HVAC_EEPROM_TYPE_AND_MODE_ADDR, hvacType);
+                EEPROM.write(HVAC_EEPROM_TYPE_AND_MODE_ADDR+1, MyModeNumber);
+            }
         }
         return true;
     }

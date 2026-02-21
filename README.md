@@ -45,13 +45,14 @@ the standard wired thermostat, and 14 wires
 toward the HVAC. The surplus of wires toward the HVAC unit are to support wired thermometers so this unit
 can monitor what is happening right at the furnace. All the parts on the PCB are available at this writing as documented
 by this
-<a href='https://www.digikey.com/short/n2hpzb1w'>digikey saved cart</a>.
+<a href='https://www.mouser.com/Tools/Project/Share?AccessID=1a8a35c924'>Mouser shared project.</a>.
 <li>An enclosure of 3D printable parts that mounts the PCB along with 3 molex connectors. 
 This repository has the printable STL files, and also the Solidworks model used to
 generate them.
 <li>An Arduino sketch.
 <li>A command line application  that runs on either Linux or Windows for the purpose of setting
 the detailed configuration of the thermostat EEPROM customized to the actual wiring in your HVAC system.
+<li><a href='Assembly.md'>Construction details are here</a>.</li>
 </ul>
 
 <p align='center'><img src='photo01.jpg' alt='photo01.jpg' /></p>
@@ -98,7 +99,7 @@ as many as two are supported by the PCB. But it doesn't use the standard names R
 design are Rx and Rz in order to indicate that the PCB's output signals named
 X1 through X3 are powered by Rx, while Z1 and Z2 are powered by Rz. The remaining two outputs, W and ZX are wired
 to PCB jumpers to enable installation-specific 24V power from either Rx or Rz on those signals.
-If your furnace has only one R wire, the PCD provides a position to jumper the Rx and Rz terminals to each other.
+If your furnace has only one R wire, the PCB provides a position to jumper the Rx and Rz terminals to each other.
 
 The furnace-facing side of PCB has 4 terminals to support 3 wired thermometer inputs sharing a 
 common ground. The sketch
@@ -164,34 +165,32 @@ temperature, the shutdown time,
 the thermostat signal combinations that indicate a heat mode, and the thermostat signals to 
 turn off to shut down the furnace.
 
-Fitting the sketch into program memory
+<h2>Power</h2>
+The device requires its own 5V power supply. For programming the Arduino, the Teensy version (PCB version 3 and later)
+requires both the micro USB connection and the 5V DC power applied. The older PCB with the Pro Micro require
+programming using an ISP programmer and with 5V DC not applied.
 
-Library versions that fit in program memory for this build:
+<h2>Sketch</h2>
+
+PCB version 3 and later has the Teensy 4.0 Arduino, which has far more than enough EEPROM and memory for the sketch.
+Earlier versions of the PCB have the Pro Micro. The Pro Micro's flash memory is not big enough to contain this
+sketch a boot loader. It is possible to "Upload with Programmer" to program the Pro Micro using (almost) all
+its flash and this sketch fits that way. See the comments in the <a href="PacketThermostat/PacketThermostat.ino">sketch</a> for a reference.
+
+Library versions that fit in program Pro Micro memory using Upload with Programmer, and with
+modified boards.txt for access to full flash memory:
 <code><pre>
-Using library RFM69_LowPowerLab at version 1.5.1 
+Using library RFM69_LowPowerLab at version 1.6.0 
 Using library SPI at version 1.0 
-Using library Wire at version 1.0  
+Using library Wire at version 1.0 
 Using library EEPROM at version 2.0 
-Using library SparkFun SerLCD Arduino Library at version 1.0.9  
-Using library SparkFun Qwiic RTC RV8803 Arduino Library at version 1.2.2 
-Using library SPIFlash_LowPowerLab at version 101.1.3 
+Using library SparkFun SerLCD Arduino Library at version 1.0.9 
+Using library SparkFun Qwiic RTC RV8803 Arduino Library at version 1.2.10 
+Using library WDT_T4 at version 0.1 
+Using library SPIFlash 
 
 And in ThermostatCommon.h, these preprocessor directives:
 #define USE_SERIAL SERIAL_PORT_SETUP
 #define HVAC_AUTO_CLASS 1 // not enough program memory for all features? Turn this off.
 </pre></code>
 
-The console mode print out that you get running PacketThermostatSettings is a lot more useful if you can
-set this: <br/><code>#define USE_SERIAL SERIAL_PORT_VERBOSE</code> in ThermostatCommon.h. But it won't fit with
-the Arduino bootloader.
-
-All the features will fit if you can get a hardware programmer attached to the Pro Micro and use
-the Arduino IDE's "Sketch/Upload-using-programmer" feature. There remains a catch. The Arduino IDE upload processing
-refuses to proceed past the compile step if the compile results in a sketch too big to fit with a boot loader,
-even if you specify to use a programmer (which means there is no bootloader.)
-The only way I could find to get around this nuisance was
-to track down the boards.txt file and add a new "board" that was copied from the 
-existing Sparkfun Pro Micro board setting. This is left as an exercise to the reader, but with this hint:
-<a href='https://forum.arduino.cc/t/removing-bootloader-atmega32u4/598120/2'>https://forum.arduino.cc/t/removing-bootloader-atmega32u4/598120/2</a>.
-Do not overlook the comment that avrdude must be run twice: once to upload the sketch, and again without the hex file
-but with this command line parameter to update the bootloader fuse: <code>-U hfuse:w:0xD7:m</code>

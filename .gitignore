@@ -7,3 +7,4 @@ PCB/REV*-Gerbers/
 *.user
 Debug/
 Release/
+*.log
