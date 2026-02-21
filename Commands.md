@@ -110,7 +110,7 @@ entry is cleared in the Packet Thermostat's EEPROM.
 may have COUNT=0, which prevents the thermostat from entering that type, even if command to. PassThrough
 always has only one MODE, and the only setting it has is its NAME.
 </li>
- <li><code>HVAC TYPE=&lt;n&gt; MODE=&lt;m&gt;</code><br/>
+ <li><code>HVAC TYPE=&lt;n&gt; MODE=&lt;m&gt; [BOOT]</code><br/>
  &lt;n&gt; is 0 through 4 as the TYPEs above, and &lt;m&gt; must be less than the number
  specified in COUNT above. This command sets the Packet Thermostat's type and mode of operation. Subsequent
  commands documented below (starting with HVAC) will apply to this particular TYPE and MODE. This
