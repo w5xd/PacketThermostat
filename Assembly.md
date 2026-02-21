@@ -2,11 +2,10 @@
 The gerber files for REV04 PCB fabrication are <a href='PCB/REV04-Gerbers.zip'>here</a>. 
 While there are some through-hole patterns on the PCB,
 many of the parts are available only SMD. A <a href='https://www.whizoo.com/controleo3'>Reflow Oven</a> makes PCB assembly
-faster and easier.
-Or if your hand is steady enough for 50 thou IC pin spacing, you can hand solder.
-<p style='margin-top:8px'>I had bad results reflow soldering with the RFM69 in place. Solder paste spreads under the 
-module and shorts its vias. Its easier to hand solder it.</p>
-All parts mount on the PCB top.
+faster and easier. Or if your hand is steady enough for 50 thou IC pin spacing, you can hand solder.
+I had bad results reflow soldering with the RFM69 in place. Solder paste spreads under the 
+module and shorts its vias. Its easier to hand solder it.
+All parts mount on the PCB top. <br/><br/>
 <p style='margin-top:8px'>The enclosure is 3D printable on common 3D printers. The printable STL files 
 are <a href="STL">here</a>. If instead you want to design a different enclosure, then you are welcome to start with the
 CAD models <a href="CAD">here</a>.</p>
@@ -72,14 +71,14 @@ All of the Sparkfun products listed above are also in Mouser's catalog.
 
 Mechanical parts:
 <ol>
-<li> <a href='https://www.digikey.com/en/products/detail/molex/0003091091/26302'>OBSOLETE. 9 pin Molex RECPT panel mount</a>. 
-Modify the free hanging 9 pin RECPT: 3D print the Molex9Insert, and use Gorilla glue double-sided tape.</li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/03091094?display=pdf'>9 pin Molex 03091094 RECPT free hanging</a>. (Quantity: 2)</li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/03092092?display=pdf'>9 pin Molex 03092092 PLUG free hanging</a>. (Quantity: 2)</li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/469990653?display=pdf'>4 pin Molex 469990653 RECPT panel mount</a></li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/03092049?display=pdf'>4 pin Molex 03092049 PLUG</a></li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/02092118?display=pdf'>Molex 02-09-2118 PIN</a>. (Quantity: 22)</li>
 <li> <a href='https://www.molex.com/en-us/products/part-detail-pdf/02091119?display=pdf'>Molex 02-09-1119 SOCKET</a>. (Quantity: 22)</li>
+<li> <a href='https://www.digikey.com/en/products/detail/molex/0003091091/26302'> No longer available. 9 pin Molex RECPT panel mount</a>. 
+Modify the free hanging 9 pin RECPT above: 3D print the Molex9Insert's, and use Gorilla glue double-sided tape.</li>
 <li> <a href='https://www.mouser.com/datasheet/3/6118/1/pj_202a.pdf'> PJ-202A 2MMx5.5MM kinked pin power jack</a></li>
 <li> <a href='https://www.mouser.com/datasheet/3/85/1/htsw_th.pdf'>Samtec TSW-150-07-T-S 0.100 inch Connection headers</a>. (Quantity: 3)<br/>
 Use this specified header soldered both sides and without a socket to be sure the micro USB on the CPU lines up with its hole in the enclosure</li>
@@ -133,7 +132,7 @@ case jumper the PCB position for single source Rx and Rz (the jumper position on
 boxes for ZX and W) and also install a jumper in the ZX and W boxes, and, for a single source,
 it makes no difference which jumper position you choose.
 
-In both the ZX and W boxes, a jumper must be placed from the center hole to either the one above (Rx)
+To repeat: in both the ZX and W boxes, a jumper must be placed from the center hole to either the one above (Rx)
 or the one below (Rz).
 
 If your furnace has split power, then you have to know which thermostat wires need to be powered
@@ -179,6 +178,7 @@ The 3D printed adapters that make the 9 pin "free hanging" into a no-longer-manu
 insert, then use a sharp blade to trim the tape to the size of the insert. Mind the orientation. The free hanging Molex is flat
 on all four sides, but there is only one orientation that matches what is installed on the furnace side.
 <p><img src='MolexInserts.png' width='20%' alt='MolexInserts.png'/> <img width="20%" alt='molexAdapt1.jpg' src='molexAdapt1.jpg' /> <img width="20%" alt='molexAdapt2.jpg' src='molexAdapt2.jpg' /></p>
-The adapters should be flush with the pin 3/9 edge of the molex, not the pin 1 edge, in order to clear the wires coming off the PCB (not pictured.)
+The adapters should be flush with the pin 3/9 edge of the molex, not the pin 1 edge, in order to clear the wires coming off the PCB (not pictured.) When the inserts are
+first installed, it may seem they slide too easily. But after the enclosure covers are 
+fastened to each other, they apply pressure to the tape that should be enough to resist the forces required to connect and disconnect the mating 9 pin Molex.
 
-<p></p>
