@@ -126,7 +126,7 @@ There are 3 jumper positions. Two of them <b>require</b> you install a jumper: t
 each may be powered from either Rx or Rz, but no jumper means no power. To know which
 R in the thermostat to connect to which R in the furnace, you need to 
 <a href='https://www.epatest.com/store/resources/images/misc/how-a-thermostat-operates.pdf'>know a little about how your 
-furnace is wired</a>. Its easy if your furnace has only a single power wire ("single transformer" in the
+furnace is wired</a>. Its easy if your furnace has only a single 24V AC power wire ("single transformer" in the
 link above), usually called R, in which
 case jumper the PCB position for single source Rx and Rz (the jumper position on the PCB between the 
 boxes for ZX and W) and also install a jumper in the ZX and W boxes, and, for a single source,
@@ -135,7 +135,7 @@ it makes no difference which jumper position you choose.
 To repeat: in both the ZX and W boxes, a jumper must be placed from the center hole to either the one above (Rx)
 or the one below (Rz).
 
-If your furnace has split power, then you have to know which thermostat wires need to be powered
+If your furnace has split 24V AC power, then you have to know which thermostat wires need to be powered
 from which R wire (Rx or Rz) and you have to choose the PacketThermostatSettings to match,
 and you need to take care in which position you jumper the ZX and the W box, and you must <b>not</b> install the Rx/Rz jumper.
 
