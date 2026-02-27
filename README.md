@@ -56,8 +56,9 @@ the detailed configuration of the thermostat EEPROM customized to the actual wir
 </ul>
 
 <p align='center'><img src='photo01.jpg' alt='photo01.jpg' /></p>
-<p style='font-size:11px;font-style:italic'>The PCB qwiic connector in the photo is an earlier
-PCB rev with opposite orienation of later revisions</p>
+<p style='font-size:11px;font-style:italic'>The PCB version in the photo is older. The CPU in the latest revision
+ is a Teensy, and the qwiic connector has opposite orientation, but otherwise the older and new boards are
+very similar.</p>
 
 A good summary of the standard
 names, colors, and functions of thermostat control wires can be found
